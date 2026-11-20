@@ -1,8 +1,9 @@
 import type { Adapter, ToolDef } from "../types.js";
-import { k8sEvents, k8sPods } from "./k8s.js";
-import { k8sLogs } from "./k8s-logs.js";
-import { pgActivity, pgBlocking } from "./pg-sessions.js";
-import { pgSlowQueries } from "./postgres.js";
+import { k8sEvents } from "./k8s/events.js";
+import { k8sLogs } from "./k8s/logs.js";
+import { k8sPods } from "./k8s/pods.js";
+import { pgActivity, pgBlocking } from "./postgres/sessions.js";
+import { pgSlowQueries } from "./postgres/slow-queries.js";
 
 /** Single source of truth for the exposed surface. Add new tools here. */
 export const allTools: ToolDef<any>[] = [pgSlowQueries, pgActivity, pgBlocking, k8sPods, k8sEvents, k8sLogs];

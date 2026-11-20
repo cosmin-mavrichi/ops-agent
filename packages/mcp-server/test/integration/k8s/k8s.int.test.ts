@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { k8sEvents, k8sPods } from "../../../src/tools/k8s.js";
-import { k8sLogs } from "../../../src/tools/k8s-logs.js";
+import { k8sEvents } from "../../../src/tools/k8s/events.js";
+import { k8sLogs } from "../../../src/tools/k8s/logs.js";
+import { k8sPods } from "../../../src/tools/k8s/pods.js";
 import { ToolError } from "../../../src/types.js";
 import { startHarness } from "../../harness.js";
 import { type K3sFixture, startK3s } from "./k8s-fixture.js";

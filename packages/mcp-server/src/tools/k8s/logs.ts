@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { defineTool, Level, ToolError } from "../types.js";
-import { allowedNamespaces, k8sLabel, k8sSubdomain, nsPath } from "./k8s.js";
+import { defineTool, Level, ToolError } from "../../types.js";
+import { allowedNamespaces, k8sLabel, k8sSubdomain, nsPath } from "./shared.js";
 
 const MAX_LINE = 500;
 const MAX_BYTES = 64 * 1024;

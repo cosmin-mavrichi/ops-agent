@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { pgActivity, pgBlocking, rootBlockers } from "../../../src/tools/pg-sessions.js";
+import { describe, expect, it } from "vitest";
+import { pgActivity, pgBlocking, rootBlockers } from "../../../src/tools/postgres/sessions.js";
 import type { SqlClient } from "../../../src/types.js";
-import { startHarness } from "../../harness.js";
+import { useHarness } from "../../harness.js";
 
 const PLANTED = "tok-planted-9911";
 
@@ -40,18 +40,14 @@ function fakePg(answers: { totals?: object; clients?: object[]; sessions?: objec
   return { client, calls };
 }
 
-let h: Awaited<ReturnType<typeof startHarness>> | undefined;
-afterEach(async () => {
-  await h?.close();
-  h = undefined;
-});
+const harness = useHarness();
 
 describe("pg_activity (unit)", () => {
   const totals = { max_connections: 100, reserved: 3, total: 90, active: 20, idle: 60, idle_in_transaction: 10 };
 
   it("reports connection usage against the usable limit", async () => {
     const pg = fakePg({ totals, clients: [{ user_name: "worker", application_name: "", n: 70 }] });
-    h = await startHarness({ tools: [pgActivity], pg: pg.client });
+    const h = await harness({ tools: [pgActivity], pg: pg.client });
     const res = await h.call("pg_activity");
     expect(res.isError).toBe(false);
     expect(res.json.connections).toMatchObject({ total: 90, used_pct: 93 });
@@ -60,7 +56,7 @@ describe("pg_activity (unit)", () => {
 
   it("passes filters as bound parameters", async () => {
     const pg = fakePg({ totals });
-    h = await startHarness({ tools: [pgActivity], pg: pg.client });
+    const h = await harness({ tools: [pgActivity], pg: pg.client });
     await h.call("pg_activity", { min_age_s: 30, limit: 5 });
     expect(pg.calls.at(-1)?.params).toEqual([30, 5]);
   });
@@ -68,14 +64,14 @@ describe("pg_activity (unit)", () => {
   it("strips literals from live query text", async () => {
     const query = `UPDATE users SET nickname = '${PLANTED}' WHERE id = 4471`;
     const pg = fakePg({ totals, sessions: [session(7, { state: "idle in transaction", query })] });
-    h = await startHarness({ tools: [pgActivity], pg: pg.client });
+    const h = await harness({ tools: [pgActivity], pg: pg.client });
     const res = await h.call("pg_activity");
     expect(res.json.sessions[0].query).toBe("UPDATE users SET nickname = ? WHERE id = ?");
     expect(res.text).not.toContain(PLANTED);
   });
 
   it("rejects out-of-range filters", async () => {
-    h = await startHarness({ tools: [pgActivity], pg: fakePg({ totals }).client });
+    const h = await harness({ tools: [pgActivity], pg: fakePg({ totals }).client });
     expect((await h.call("pg_activity", { limit: 500 })).isError).toBe(true);
     expect((await h.call("pg_activity", { min_age_s: -1 })).isError).toBe(true);
   });
@@ -131,7 +127,7 @@ describe("pg_blocking (unit)", () => {
         session(12, { wait_event_type: "Lock", wait_event: "relation", blocked_by: [11], relation: "orders" }),
       ],
     });
-    h = await startHarness({ tools: [pgBlocking], pg: pg.client });
+    const h = await harness({ tools: [pgBlocking], pg: pg.client });
     const res = await h.call("pg_blocking");
 
     expect(res.isError).toBe(false);
@@ -149,12 +145,12 @@ describe("pg_blocking (unit)", () => {
   });
 
   it("reports a quiet database plainly", async () => {
-    h = await startHarness({ tools: [pgBlocking], pg: fakePg({ blocking: [] }).client });
+    const h = await harness({ tools: [pgBlocking], pg: fakePg({ blocking: [] }).client });
     expect((await h.call("pg_blocking")).json).toEqual({ waiting_sessions: 0, root_blockers: [], waiting: [] });
   });
 
   it("takes no arguments", async () => {
-    h = await startHarness({ tools: [pgBlocking], pg: fakePg({}).client });
+    const h = await harness({ tools: [pgBlocking], pg: fakePg({}).client });
     expect((await h.call("pg_blocking", { pid: 1 })).isError).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import { UNTRUSTED_NOTE } from "../../../src/tools/k8s-logs.js";
+import { UNTRUSTED_NOTE } from "../../../src/tools/k8s/logs.js";
 import { type Lab, type Scenario, until } from "../../scenario.js";
 
 const DB_PASSWORD = "lab-db-pw-3307";

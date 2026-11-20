@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/client";
 // Both halves of the linked pair must come from the same package (each bundles its own copy).
 import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
+import { afterEach } from "vitest";
 import { createRedactor } from "../src/lib/redact.js";
 import { type AuditEntry, registerTools } from "../src/registry.js";
 import { type K8sClient, Level, type SqlClient, type ToolDef } from "../src/types.js";
@@ -9,24 +10,24 @@ import { type K8sClient, Level, type SqlClient, type ToolDef } from "../src/type
  * Spins up a real MCP server + client over an in-memory transport.
  * Tests go through the actual protocol (listTools / callTool), same path the agent uses.
  */
-export async function startHarness(opts: {
+export interface HarnessOptions {
   tools: ToolDef<any>[];
   pg?: SqlClient;
   k8s?: K8sClient;
   maxLevel?: Level;
   knownSecrets?: string[];
-}) {
+}
+
+export type Harness = Awaited<ReturnType<typeof startHarness>>;
+
+export async function startHarness(opts: HarnessOptions) {
   const audit: AuditEntry[] = [];
   const server = new McpServer({ name: "ops-test", version: "0.0.0" }, { capabilities: { tools: {} } });
   const exposed = registerTools(server, opts.tools, {
     maxLevel: opts.maxLevel ?? Level.Read,
     redact: createRedactor(opts.knownSecrets ?? []),
     context: (signal) => ({
-      pg: opts.pg ?? {
-        query: async () => {
-          throw new Error("no pg in this test");
-        },
-      },
+      pg: opts.pg ?? missingPg,
       k8s: opts.k8s ?? missingK8s,
       signal,
       log: () => {},
@@ -47,13 +48,7 @@ export async function startHarness(opts: {
       const res = await client.callTool({ name, arguments: args });
       const first = (res.content as Array<{ type: string; text?: string }>)[0];
       const text = first?.text ?? "";
-      let json: any;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        json = undefined;
-      }
-      return { isError: res.isError === true, text, json };
+      return { isError: res.isError === true, text, json: parseJson(text) };
     },
     async close() {
       await client.close();
@@ -62,7 +57,29 @@ export async function startHarness(opts: {
   };
 }
 
-const missing = async (): Promise<never> => {
-  throw new Error("no k8s in this test");
+/** Starts a harness inside a test and closes it after that test. */
+export function useHarness() {
+  let current: Harness | undefined;
+  afterEach(async () => {
+    await current?.close();
+    current = undefined;
+  });
+  return async (opts: HarnessOptions) => {
+    current = await startHarness(opts);
+    return current;
+  };
+}
+
+function parseJson(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+const notInThisTest = (adapter: string) => async (): Promise<never> => {
+  throw new Error(`no ${adapter} in this test`);
 };
-const missingK8s: K8sClient = { namespaces: [], getJson: missing, getText: missing };
+const missingPg: SqlClient = { query: notInThisTest("pg") };
+const missingK8s: K8sClient = { namespaces: [], getJson: notInThisTest("k8s"), getText: notInThisTest("k8s") };

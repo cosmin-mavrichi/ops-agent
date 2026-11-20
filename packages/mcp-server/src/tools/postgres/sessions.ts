@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { stripLiterals } from "../lib/sql-text.js";
-import { defineTool, Level } from "../types.js";
+import { stripLiterals } from "../../lib/sql-text.js";
+import { defineTool, Level } from "../../types.js";
 
 const MAX_QUERY_TEXT = 1_000;
 

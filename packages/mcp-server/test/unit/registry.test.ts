@@ -86,6 +86,19 @@ describe("call pipeline", () => {
     expect(res.text).not.toContain("topsecretvalue");
   });
 
+  it("keeps the output valid JSON when a value is redacted", async () => {
+    h = await startHarness({ tools: [echo] });
+    const res = await h.call("echo", { msg: "API_KEY=sk_live_123456" });
+    expect(res.json).toEqual({ msg: "API_KEY=***" });
+  });
+
+  it("finds known secrets that JSON would escape", async () => {
+    const secret = 'pa"ss\\word99';
+    h = await startHarness({ tools: [echo], knownSecrets: [secret] });
+    const res = await h.call("echo", { msg: `login with ${secret}` });
+    expect(res.json).toEqual({ msg: "login with ***" });
+  });
+
   it("times out slow tools", async () => {
     const slow: ToolDef<any> = {
       ...echo,

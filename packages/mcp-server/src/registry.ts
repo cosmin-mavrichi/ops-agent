@@ -61,7 +61,11 @@ export function registerTools(server: McpServer, defs: ToolDef<any>[], opts: Reg
           (signal) => def.run(parsed.data, opts.context(signal)),
           ctx?.mcpReq.signal,
         );
-        const text = truncate(opts.redact(JSON.stringify(data, null, 2)), maxChars);
+        // Redact each string before serializing: redacting JSON text can swallow a closing quote and
+        // misses secrets that JSON escapes.
+        const redactStrings = (_key: string, value: unknown) =>
+          typeof value === "string" ? opts.redact(value) : value;
+        const text = truncate(JSON.stringify(data, redactStrings, 2), maxChars);
         finish(true, parsed.data);
         return { content: [{ type: "text", text }] };
       } catch (err) {

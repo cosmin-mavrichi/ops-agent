@@ -11,7 +11,7 @@
     "start": "node dist/src/index.js",
     "test": "vitest run test/unit",
     "test:int": "vitest run test/integration --no-file-parallelism",
-    "lab": "vitest run lab --no-file-parallelism"
+    "lab": "vitest run lab --no-file-parallelism --reporter=verbose"
   },
   "keywords": [],
   "author": "",

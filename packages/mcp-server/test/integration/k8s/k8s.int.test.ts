@@ -150,3 +150,22 @@ describe("ops-ro ServiceAccount is actually read-only and scoped", () => {
     expect(await can("get", "pods")).toBe("yes");
   });
 });
+
+describe("k8s adapter limits", () => {
+  // A watch keeps the connection open and sends nothing while nothing changes.
+  const WATCH = ["/api/v1/namespaces/app/pods", undefined, { watch: true }] as const;
+
+  it("refuses responses over the size cap", async () => {
+    const tiny = k3s.connect({ maxResponseBytes: 100 });
+    await expect(tiny.getJson("/api/v1/namespaces/app/pods")).rejects.toThrow("over 100 bytes");
+  });
+
+  it("gives up on a connection that goes quiet", async () => {
+    const impatient = k3s.connect({ timeoutMs: 500 });
+    await expect(impatient.getText(...WATCH)).rejects.toThrow("timed out");
+  });
+
+  it("stops when the caller aborts, even mid-response", async () => {
+    await expect(k3s.ops.getText(WATCH[0], AbortSignal.timeout(500), WATCH[2])).rejects.toThrow();
+  });
+});

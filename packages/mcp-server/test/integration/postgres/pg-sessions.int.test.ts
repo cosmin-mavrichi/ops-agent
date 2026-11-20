@@ -1,7 +1,8 @@
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPgClient } from "../../../src/adapters/pg.js";
-import { pgActivity, pgBlocking } from "../../../src/tools/postgres/sessions.js";
+import { pgActivity } from "../../../src/tools/postgres/activity.js";
+import { pgBlocking } from "../../../src/tools/postgres/blocking.js";
 import { startHarness } from "../../harness.js";
 import { APP_NAME, OPS_PW, type PgFixture, startPostgres } from "./pg-fixture.js";
 

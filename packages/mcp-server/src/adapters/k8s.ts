@@ -1,4 +1,5 @@
-import { request } from "node:https";
+import type { ClientRequest, IncomingMessage } from "node:http";
+import { type RequestOptions, request } from "node:https";
 import { type K8sClient, type QueryParams, ToolError } from "../types.js";
 
 export interface K8sConfig {
@@ -9,9 +10,14 @@ export interface K8sConfig {
   /** Called per request: projected ServiceAccount tokens rotate, so never cache the value. */
   token: () => string;
   namespaces: readonly string[];
+  /** How long the connection may stay silent before the request fails. */
   timeoutMs?: number;
   maxResponseBytes?: number;
 }
+
+const ACCEPT_JSON = "application/json";
+// Log bodies are plain text, but the API only negotiates JSON-family types (it answers errors as JSON).
+const ACCEPT_JSON_OR_TEXT = "application/json, */*";
 
 /**
  * Read-only Kubernetes client: GET only, authenticated as a ServiceAccount whose RBAC allows
@@ -20,51 +26,71 @@ export interface K8sConfig {
 export function createK8sClient(cfg: K8sConfig): K8sClient {
   const maxBytes = cfg.maxResponseBytes ?? 4 * 1024 * 1024;
 
-  const get = (path: string, query: QueryParams, accept: string, signal?: AbortSignal) =>
-    new Promise<string>((resolve, reject) => {
-      const url = new URL(path, cfg.server);
-      for (const [key, value] of Object.entries(query)) {
-        if (value !== undefined) url.searchParams.set(key, String(value));
-      }
-
-      const req = request(
-        url,
-        {
-          method: "GET",
-          ca: cfg.ca,
-          headers: { authorization: `Bearer ${cfg.token()}`, accept },
-          timeout: cfg.timeoutMs ?? 5_000,
-          signal,
-        },
-        (res) => {
-          const chunks: Buffer[] = [];
-          let size = 0;
-          res.on("data", (chunk: Buffer) => {
-            size += chunk.length;
-            if (size > maxBytes) req.destroy(new Error(`kubernetes response over ${maxBytes} bytes for ${path}`));
-            else chunks.push(chunk);
-          });
-          res.on("end", () => {
-            const body = Buffer.concat(chunks).toString("utf8");
-            const status = res.statusCode ?? 0;
-            if (status >= 200 && status < 300) resolve(body);
-            else reject(statusError(status, path, body));
-          });
-          res.on("error", reject);
-        },
-      );
-      req.on("timeout", () => req.destroy(new Error(`kubernetes request timed out for ${path}`)));
-      req.on("error", reject);
-      req.end();
-    });
+  async function get(path: string, accept: string, signal?: AbortSignal, query: QueryParams = {}) {
+    const options: RequestOptions = {
+      method: "GET",
+      ca: cfg.ca,
+      headers: { authorization: `Bearer ${cfg.token()}`, accept },
+      timeout: cfg.timeoutMs ?? 5_000,
+      signal,
+    };
+    const { req, res } = await sendRequest(buildUrl(cfg.server, path, query), options, path);
+    const body = await readBody(req, res, maxBytes, path);
+    const status = res.statusCode ?? 0;
+    if (status < 200 || status >= 300) throw statusError(status, path, body);
+    return body;
+  }
 
   return {
     namespaces: cfg.namespaces,
-    getJson: async <T>(path: string, signal?: AbortSignal, query: QueryParams = {}) =>
-      JSON.parse(await get(path, query, "application/json", signal)) as T,
-    // Log bodies are plain text, but the API only negotiates JSON-family types (it answers errors as JSON).
-    getText: (path, signal, query = {}) => get(path, query, "application/json, */*", signal),
+    getJson: async <T>(path: string, signal?: AbortSignal, query?: QueryParams) =>
+      JSON.parse(await get(path, ACCEPT_JSON, signal, query)) as T,
+    getText: (path, signal, query) => get(path, ACCEPT_JSON_OR_TEXT, signal, query),
   };
+}
+
+function buildUrl(server: string, path: string, query: QueryParams): URL {
+  const url = new URL(path, server);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+  return url;
+}
+
+interface Exchange {
+  readonly req: ClientRequest;
+  readonly res: IncomingMessage;
+}
+
+/** Resolves once the response headers arrive. */
+function sendRequest(url: URL, options: RequestOptions, path: string): Promise<Exchange> {
+  return new Promise((resolve, reject) => {
+    const req = request(url, options, (res) => resolve({ req, res }));
+    req.on("timeout", () => req.destroy(new Error(`kubernetes request timed out for ${path}`)));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/** Reads the whole body, failing past maxBytes or when the connection drops before the end. */
+function readBody(req: ClientRequest, res: IncomingMessage, maxBytes: number, path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // A timeout or abort mid-body is reported on the request; the response only sees "aborted".
+    req.on("error", reject);
+    const chunks: Buffer[] = [];
+    let size = 0;
+    res.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) res.destroy(new Error(`kubernetes response over ${maxBytes} bytes for ${path}`));
+      else chunks.push(chunk);
+    });
+    res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    res.on("error", reject);
+    // Timeouts and aborts destroy the request; the response then closes without "end".
+    res.on("close", () => {
+      if (!res.complete) reject(new Error(`kubernetes response for ${path} ended early`));
+    });
+  });
 }
 
 /** Maps API errors the model can act on to ToolErrors; anything else stays internal. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { pgActivity, pgBlocking, rootBlockers } from "../../../src/tools/postgres/sessions.js";
+import { pgActivity } from "../../../src/tools/postgres/activity.js";
+import { pgBlocking, rootBlockers } from "../../../src/tools/postgres/blocking.js";
 import type { SqlClient } from "../../../src/types.js";
 import { useHarness } from "../../harness.js";
 

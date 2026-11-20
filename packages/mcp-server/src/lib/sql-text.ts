@@ -12,22 +12,23 @@ export function stripLiterals(sql: string): string {
   while (i < sql.length) {
     const ch = sql.charAt(i);
     const next = sql.charAt(i + 1);
+    const tag = ch === "$" ? dollarTag(sql, i) : undefined;
 
     if (ch === "-" && next === "-") {
       i = skipLineComment(sql, i);
     } else if (ch === "/" && next === "*") {
       i = skipBlockComment(sql, i);
     } else if (ch === "'") {
-      const escapes = isEscapeStringPrefix(sql, i);
-      if (escapes) out = out.slice(0, -1);
-      i = skipQuoted(sql, i, escapes);
+      const backslashEscapes = isEscapeStringPrefix(sql, i);
+      if (backslashEscapes) out = out.slice(0, -1); // the E prefix was already copied
+      i = skipQuoted(sql, i, { backslashEscapes });
       out += "?";
     } else if (ch === '"') {
-      const end = skipQuoted(sql, i, false);
+      const end = skipQuoted(sql, i, { backslashEscapes: false });
       out += sql.slice(i, end);
       i = end;
-    } else if (ch === "$" && dollarTag(sql, i) !== undefined) {
-      i = skipDollarQuoted(sql, i, dollarTag(sql, i) as string);
+    } else if (tag) {
+      i = skipDollarQuoted(sql, i, tag);
       out += "?";
     } else if (isDigit(ch) && !isIdentifierChar(sql.charAt(i - 1))) {
       i = skipNumber(sql, i);
@@ -65,7 +66,7 @@ function skipBlockComment(sql: string, start: number): number {
 }
 
 /** Skips '…' or "…" starting at the opening quote; a doubled quote is an escaped quote. */
-function skipQuoted(sql: string, start: number, backslashEscapes: boolean): number {
+function skipQuoted(sql: string, start: number, { backslashEscapes }: { backslashEscapes: boolean }): number {
   const quote = sql.charAt(start);
   let i = start + 1;
   while (i < sql.length) {

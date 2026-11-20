@@ -23,6 +23,11 @@ export function allowedNamespaces(k8s: K8sClient, requested: string | undefined)
   return [requested];
 }
 
+/** Throws forbidden_namespace unless `namespace` is in the allowlist. */
+export function assertNamespaceAllowed(k8s: K8sClient, namespace: string): void {
+  allowedNamespaces(k8s, namespace);
+}
+
 export const nsPath = (namespace: string) => `/api/v1/namespaces/${encodeURIComponent(namespace)}`;
 
 const MAX_MESSAGE = 300;

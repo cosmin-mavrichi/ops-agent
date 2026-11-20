@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { K3sContainer, type StartedK3sContainer } from "@testcontainers/k3s";
-import { createK8sClient } from "../../../src/adapters/k8s.js";
+import { createK8sClient, type K8sConfig } from "../../../src/adapters/k8s.js";
 import type { K8sClient } from "../../../src/types.js";
 
 const IMAGE = "rancher/k3s:v1.37.2-k3s1";
@@ -10,6 +10,7 @@ export interface K3sFixture {
   container: StartedK3sContainer;
   /** Client authenticated as the ops-ro ServiceAccount, exactly as in production. */
   ops: K8sClient;
+  connect(overrides?: Partial<K8sConfig>): K8sClient;
   /** The ServiceAccount token, for leak checks. */
   token: string;
   kubectl(...args: string[]): Promise<string>;
@@ -47,15 +48,16 @@ export async function startK3s(): Promise<K3sFixture> {
   const caData = /certificate-authority-data: (\S+)/.exec(kubeconfig)?.[1];
   if (!server || !caData) throw new Error("unexpected kubeconfig format from k3s");
 
+  /** A client as the ops ServiceAccount; overrides let tests shrink limits. */
+  const ca = Buffer.from(caData, "base64").toString("utf8");
+  const connect = (overrides: Partial<K8sConfig> = {}) =>
+    createK8sClient({ server, ca, token: () => token, namespaces: ["app"], ...overrides });
+
   return {
     container,
     token,
-    ops: createK8sClient({
-      server,
-      ca: Buffer.from(caData, "base64").toString("utf8"),
-      token: () => token,
-      namespaces: ["app"],
-    }),
+    ops: connect(),
+    connect,
     kubectl,
     apply,
     async waitFor(resource, jsonpath, done, timeoutMs = 150_000) {

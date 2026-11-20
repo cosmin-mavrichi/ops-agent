@@ -15,15 +15,17 @@ pnpm install       # from the repo root; it is a pnpm workspace
 ## Layout (so far)
 
 ```
-packages/mcp-server/     the only code that touches infra
-  src/registry.ts        level gating + call pipeline (validate → timeout → redact → truncate → audit)
-  src/tools/postgres.ts  pg_slow_queries — the reference tool; copy its shape
-  src/tools/pg-sessions.ts pg_activity, pg_blocking — live sessions and lock chains
-  src/lib/sql-text.ts    strips literals/comments from live query text
-  src/adapters/pg.ts     read-only pool (ops_ro role, read-only session, statement timeout)
-  src/adapters/k8s.ts    read-only Kubernetes client (GET only, ServiceAccount token)
-  src/tools/k8s.ts       k8s_pods, k8s_events; src/tools/k8s-logs.ts: k8s_logs
-  test/harness.ts        real MCP server + client over in-memory transport
+packages/mcp-server/                the only code that touches infra
+  src/registry.ts                   level gating + call pipeline (validate → timeout → redact → truncate → audit)
+  src/adapters/pg.ts                read-only pool (ops_ro role, read-only session, statement timeout)
+  src/adapters/k8s.ts               read-only Kubernetes client (GET only, ServiceAccount token)
+  src/tools/postgres/slow-queries.ts  pg_slow_queries — the reference tool; copy its shape
+  src/tools/postgres/               shared (session columns), activity, blocking
+  src/tools/k8s/                    shared (namespace allowlist), pods, events, logs
+  src/lib/sql-text.ts               strips literals/comments from live query text
+  test/harness.ts                   real MCP server + client over in-memory transport (useHarness in tests)
+  test/{unit,integration}/<area>/   tests grouped by area: core, postgres, k8s
+  lab/scenarios/<area>/             fault lab scenarios
 deploy/sql/ops_ro.sql    one-time Postgres role setup
 deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
 ```

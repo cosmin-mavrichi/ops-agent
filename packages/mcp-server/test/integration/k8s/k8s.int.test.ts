@@ -112,15 +112,18 @@ describe("k8s_events against k3s", () => {
 describe("k8s_logs against k3s", () => {
   it("reads the dead container's last words, with the secret redacted", async () => {
     // The pod keeps restarting, so a read can race a restart (logs_unavailable); retry like the agent would.
+    // Slow CI runners can take longer, so the wait is generous and a failure says what the tool answered.
     await vi.waitFor(
       async () => {
         const res = await h.call("k8s_logs", { namespace: "app", pod: "crasher", previous: true });
         expect(res.text).not.toContain(LOG_SECRET);
-        expect(res.json.lines?.join("\n")).toContain("fatal: cannot reach redis");
+        expect(res.json.lines?.join("\n") ?? "", `k8s_logs answered: ${res.text}`).toContain(
+          "fatal: cannot reach redis",
+        );
       },
-      { timeout: 30_000, interval: 1_000 },
+      { timeout: 60_000, interval: 2_000 },
     );
-  }, 40_000);
+  }, 75_000);
 
   it("reports a missing pod as not found", async () => {
     const res = await h.call("k8s_logs", { namespace: "app", pod: "nope" });

@@ -1,0 +1,16 @@
+packages:
+  - packages/*
+
+# Don't install package versions published less than 7 days ago (minutes).
+minimumReleaseAge: 10080
+# Exact versions already in use before the switch to pnpm; drop once older than 7 days.
+minimumReleaseAgeExclude:
+  - vitest@5.1.1
+  - '@vitest/mocker@5.1.1'
+  - '@vitest/spy@5.1.1'
+
+# Install scripts: none are needed (optional native speed-ups / version checks).
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

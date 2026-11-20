@@ -90,4 +90,8 @@ Rules for adding a tool:
 
 Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 
+## Workflow
+
+The repo is public (`github.com/cosmin-mavrichi/ops-agent`). `main` is protected by a ruleset: changes land only through a pull request whose `unit` and `integration` jobs pass on its latest commit; no force-pushes, merge commits only. Work on a branch, `gh pr create`, wait for CI, then `gh pr merge --merge --delete-branch`. Commit with the GitHub noreply email set in this repo's git config, never a personal address. Workflow actions are pinned to commit SHAs (Dependabot updates them); keep new ones pinned the same way with the version in a trailing comment.
+
 SDK v2 behaviour to know: calling an unknown/hidden tool rejects with a `ProtocolError` (not an `isError` result).

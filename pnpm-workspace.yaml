@@ -6,8 +6,8 @@ minimumReleaseAge: 10080
 # Exact versions already in use before the switch to pnpm; drop once older than 7 days.
 minimumReleaseAgeExclude:
   - vitest@5.1.1
-  - '@vitest/mocker@5.1.1'
-  - '@vitest/spy@5.1.1'
+  - "@vitest/mocker@5.1.1"
+  - "@vitest/spy@5.1.1"
 
 # Install scripts: none are needed (optional native speed-ups / version checks).
 allowBuilds:

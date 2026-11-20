@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Level, ToolError, defineTool } from "../types.js";
+import { defineTool, Level, ToolError } from "../types.js";
 
 /** Whitelisted sort columns. User input selects a key; it is never interpolated. */
 const ORDER_BY = {

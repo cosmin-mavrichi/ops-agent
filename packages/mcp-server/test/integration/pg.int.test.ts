@@ -8,7 +8,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPgClient } from "../../src/adapters/pg.js";
 import { pgSlowQueries } from "../../src/tools/postgres.js";
-import { Level, defineTool } from "../../src/types.js";
+import { defineTool, Level } from "../../src/types.js";
 import { startHarness } from "../harness.js";
 
 const OPS_PW = "ops-ro-test-pw-9271";
@@ -25,9 +25,12 @@ beforeAll(async () => {
     .withDatabase("app")
     .withCommand([
       "postgres",
-      "-c", "shared_preload_libraries=pg_stat_statements",
-      "-c", "pg_stat_statements.track=top",
-      "-c", "pg_stat_statements.track_utility=on", // on deliberately: proves redaction catches PASSWORD literals
+      "-c",
+      "shared_preload_libraries=pg_stat_statements",
+      "-c",
+      "pg_stat_statements.track=top",
+      "-c",
+      "pg_stat_statements.track_utility=on", // on deliberately: proves redaction catches PASSWORD literals
     ])
     .start();
 
@@ -42,7 +45,9 @@ beforeAll(async () => {
 
   // Fixture workload: one table, a slow statement, a chatty statement, and a secret-bearing utility statement.
   await admin.query("CREATE TABLE reviews (id serial primary key, product_id int, body text)");
-  await admin.query("INSERT INTO reviews (product_id, body) SELECT g % 100, md5(g::text) FROM generate_series(1, 20000) g");
+  await admin.query(
+    "INSERT INTO reviews (product_id, body) SELECT g % 100, md5(g::text) FROM generate_series(1, 20000) g",
+  );
   await admin.query("SELECT pg_stat_statements_reset()");
   for (let i = 0; i < 3; i++) await admin.query("SELECT pg_sleep(0.2), count(*) FROM reviews");
   for (let i = 0; i < 200; i++) await admin.query("SELECT body FROM reviews WHERE product_id = $1", [i % 100]);
@@ -115,8 +120,12 @@ describe("ops_ro role is actually read-only", () => {
 describe("adapter under failure", () => {
   it("times out a hung query on time, and Postgres ends it within statement_timeout", async () => {
     const sleepy = defineTool({
-      name: "sleepy", level: Level.Read, title: "sleepy", description: "test",
-      input: {}, timeoutMs: 300,
+      name: "sleepy",
+      level: Level.Read,
+      title: "sleepy",
+      description: "test",
+      input: {},
+      timeoutMs: 300,
       run: (_args, { pg }) => pg.query("SELECT pg_sleep(30)"),
     });
     const th = await startHarness({ tools: [sleepy], pg: opsPg });
@@ -128,7 +137,9 @@ describe("adapter under failure", () => {
       await expect(opsPg.query("SELECT 1 AS ok")).resolves.toEqual([{ ok: 1 }]);
 
       const stillRunning = () =>
-        admin.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)' AND state = 'active'");
+        admin.query(
+          "SELECT count(*)::int AS n FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)' AND state = 'active'",
+        );
       await vi.waitFor(async () => expect((await stillRunning()).rows[0].n).toBe(0), { timeout: 8_000, interval: 250 });
     } finally {
       await th.close();

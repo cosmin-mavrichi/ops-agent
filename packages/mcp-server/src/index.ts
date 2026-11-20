@@ -3,14 +3,14 @@ import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { createPgClient } from "./adapters/pg.js";
 import { loadConfig } from "./config.js";
 import { createRedactor } from "./lib/redact.js";
-import { registerTools, type RegistryOptions } from "./registry.js";
+import { type RegistryOptions, registerTools } from "./registry.js";
 import { allTools } from "./tools/index.js";
 
 const cfg = loadConfig();
 const redact = createRedactor(cfg.knownSecrets);
 // stdout is the MCP channel — all logging goes to stderr.
 const log = (msg: string, meta?: Record<string, unknown>) =>
-  process.stderr.write(JSON.stringify({ t: new Date().toISOString(), msg, ...meta }) + "\n");
+  process.stderr.write(`${JSON.stringify({ t: new Date().toISOString(), msg, ...meta })}\n`);
 const pg = createPgClient({
   connectionString: cfg.pgUrl,
   onError: (err) => log("pg_pool_error", { error: redact(err.message) }),

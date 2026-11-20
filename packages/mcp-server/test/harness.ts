@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/client";
 // Both halves of the linked pair must come from the same package (each bundles its own copy).
 import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
 import { createRedactor } from "../src/lib/redact.js";
-import { registerTools, type AuditEntry } from "../src/registry.js";
+import { type AuditEntry, registerTools } from "../src/registry.js";
 import { Level, type SqlClient, type ToolDef } from "../src/types.js";
 
 /**
@@ -21,7 +21,11 @@ export async function startHarness(opts: {
     maxLevel: opts.maxLevel ?? Level.Read,
     redact: createRedactor(opts.knownSecrets ?? []),
     context: (signal) => ({
-      pg: opts.pg ?? { query: async () => { throw new Error("no pg in this test"); } },
+      pg: opts.pg ?? {
+        query: async () => {
+          throw new Error("no pg in this test");
+        },
+      },
       signal,
       log: () => {},
     }),
@@ -42,7 +46,11 @@ export async function startHarness(opts: {
       const first = (res.content as Array<{ type: string; text?: string }>)[0];
       const text = first?.text ?? "";
       let json: any;
-      try { json = JSON.parse(text); } catch { json = undefined; }
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = undefined;
+      }
       return { isError: res.isError === true, text, json };
     },
     async close() {

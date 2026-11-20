@@ -10,10 +10,20 @@ function fakePg(opts: { extension?: boolean } = {}) {
     async query(sql, params = []) {
       calls.push({ sql, params });
       if (sql.includes("pg_extension WHERE")) return [{ ok: opts.extension ?? true }] as any;
-      if (sql.includes("pg_stat_statements_info")) return [{ stats_since: new Date("2026-11-18T00:00:00Z"), dealloc: "0" }] as any;
+      if (sql.includes("pg_stat_statements_info"))
+        return [{ stats_since: new Date("2026-11-18T00:00:00Z"), dealloc: "0" }] as any;
       return [
-        { queryid: "42", query: "SELECT * FROM reviews WHERE product_id = $1", calls: "1000",
-          total_ms: "52000.0", mean_ms: "52.00", max_ms: "900.0", rows: "20000", hit_ratio: "97.5", temp_mb: "0.0" },
+        {
+          queryid: "42",
+          query: "SELECT * FROM reviews WHERE product_id = $1",
+          calls: "1000",
+          total_ms: "52000.0",
+          mean_ms: "52.00",
+          max_ms: "900.0",
+          rows: "20000",
+          hit_ratio: "97.5",
+          temp_mb: "0.0",
+        },
       ] as any;
     },
   };
@@ -21,7 +31,10 @@ function fakePg(opts: { extension?: boolean } = {}) {
 }
 
 let h: Awaited<ReturnType<typeof startHarness>> | undefined;
-afterEach(async () => { await h?.close(); h = undefined; });
+afterEach(async () => {
+  await h?.close();
+  h = undefined;
+});
 
 describe("pg_slow_queries (unit)", () => {
   it("maps rows into numbers the model can reason about", async () => {

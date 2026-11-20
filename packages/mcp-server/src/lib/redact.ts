@@ -22,9 +22,7 @@ const PATTERNS: Array<[RegExp, string]> = [
   [/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi, "***@***"],
 ];
 
-export interface Redactor {
-  (text: string): string;
-}
+export type Redactor = (text: string) => string;
 
 /**
  * @param knownSecrets exact values to scrub (DB passwords, API keys from config).

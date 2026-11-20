@@ -2,25 +2,39 @@ import { ProtocolError } from "@modelcontextprotocol/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { allTools } from "../../src/tools/index.js";
-import { Level, ToolError, defineTool, type ToolDef } from "../../src/types.js";
+import { defineTool, Level, type ToolDef, ToolError } from "../../src/types.js";
 import { startHarness } from "../harness.js";
 
 const echo = defineTool({
-  name: "echo", level: Level.Read, title: "echo", description: "test",
+  name: "echo",
+  level: Level.Read,
+  title: "echo",
+  description: "test",
   input: { msg: z.string().max(50) },
   run: async ({ msg }) => ({ msg }),
 });
 const restart = defineTool({
-  name: "restart_service", level: Level.Change, title: "restart", description: "test",
-  input: {}, run: async () => ({ restarted: true }),
+  name: "restart_service",
+  level: Level.Change,
+  title: "restart",
+  description: "test",
+  input: {},
+  run: async () => ({ restarted: true }),
 });
 const nuke = defineTool({
-  name: "restore_backup", level: Level.Dangerous, title: "restore", description: "test",
-  input: {}, run: async () => ({ restored: true }),
+  name: "restore_backup",
+  level: Level.Dangerous,
+  title: "restore",
+  description: "test",
+  input: {},
+  run: async () => ({ restored: true }),
 });
 
 let h: Awaited<ReturnType<typeof startHarness>> | undefined;
-afterEach(async () => { await h?.close(); h = undefined; });
+afterEach(async () => {
+  await h?.close();
+  h = undefined;
+});
 
 describe("level gating", () => {
   it("v1 exposes only level-1 tools", async () => {
@@ -71,7 +85,13 @@ describe("call pipeline", () => {
   });
 
   it("times out slow tools", async () => {
-    const slow: ToolDef<any> = { ...echo, name: "slow", timeoutMs: 50, input: {}, run: () => new Promise((r) => setTimeout(r, 500)) };
+    const slow: ToolDef<any> = {
+      ...echo,
+      name: "slow",
+      timeoutMs: 50,
+      input: {},
+      run: () => new Promise((r) => setTimeout(r, 500)),
+    };
     h = await startHarness({ tools: [slow] });
     const res = await h.call("slow");
     expect(res.isError).toBe(true);
@@ -81,8 +101,13 @@ describe("call pipeline", () => {
   it("aborts the tool when the client cancels the request", async () => {
     let toolSignal: AbortSignal | undefined;
     const hang: ToolDef<any> = {
-      ...echo, name: "hang", input: {},
-      run: (_args, { signal }) => { toolSignal = signal; return new Promise(() => {}); },
+      ...echo,
+      name: "hang",
+      input: {},
+      run: (_args, { signal }) => {
+        toolSignal = signal;
+        return new Promise(() => {});
+      },
     };
     h = await startHarness({ tools: [hang] });
     const client = new AbortController();
@@ -97,8 +122,22 @@ describe("call pipeline", () => {
   });
 
   it("passes ToolError messages through, hides unexpected errors", async () => {
-    const expected: ToolDef<any> = { ...echo, name: "expected", input: {}, run: async () => { throw new ToolError("unavailable", "extension missing"); } };
-    const leaky: ToolDef<any> = { ...echo, name: "leaky", input: {}, run: async () => { throw new Error("connect ECONNREFUSED postgres://app:pw123456@10.0.0.5"); } };
+    const expected: ToolDef<any> = {
+      ...echo,
+      name: "expected",
+      input: {},
+      run: async () => {
+        throw new ToolError("unavailable", "extension missing");
+      },
+    };
+    const leaky: ToolDef<any> = {
+      ...echo,
+      name: "leaky",
+      input: {},
+      run: async () => {
+        throw new Error("connect ECONNREFUSED postgres://app:pw123456@10.0.0.5");
+      },
+    };
     h = await startHarness({ tools: [expected, leaky] });
 
     expect((await h.call("expected")).json).toEqual({ error: "unavailable", message: "extension missing" });
@@ -113,7 +152,13 @@ describe("call pipeline", () => {
   });
 
   it("truncates oversized output", async () => {
-    const big: ToolDef<any> = { ...echo, name: "big", maxOutputChars: 100, input: {}, run: async () => ({ s: "x".repeat(1000) }) };
+    const big: ToolDef<any> = {
+      ...echo,
+      name: "big",
+      maxOutputChars: 100,
+      input: {},
+      run: async () => ({ s: "x".repeat(1000) }),
+    };
     h = await startHarness({ tools: [big] });
     expect((await h.call("big")).text).toMatch(/truncated \d+ chars/);
   });

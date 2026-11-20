@@ -2,7 +2,7 @@ import type { CallToolResult, McpServer, ServerContext } from "@modelcontextprot
 import { z } from "zod";
 import { CancelledError, TimeoutError, truncate, withTimeout } from "./lib/limits.js";
 import type { Redactor } from "./lib/redact.js";
-import { Level, ToolError, type ToolContext, type ToolDef } from "./types.js";
+import { Level, type ToolContext, type ToolDef, ToolError } from "./types.js";
 
 export interface AuditEntry {
   tool: string;

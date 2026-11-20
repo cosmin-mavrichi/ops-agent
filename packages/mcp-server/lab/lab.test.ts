@@ -11,9 +11,17 @@ import { crashLoop } from "./scenarios/k8s/crash-loop.js";
 import { lockContention } from "./scenarios/postgres/lock-contention.js";
 import { cacheFull } from "./scenarios/redis/cache-full.js";
 import { slowKeys } from "./scenarios/redis/slow-keys.js";
+import { appSecretInLogs } from "./scenarios/security/app-secret-in-logs.js";
 import { promptInjection } from "./scenarios/security/prompt-injection.js";
 
-const scenarios: readonly Scenario[] = [crashLoop, lockContention, cacheFull, slowKeys, promptInjection];
+const scenarios: readonly Scenario[] = [
+  crashLoop,
+  lockContention,
+  cacheFull,
+  slowKeys,
+  promptInjection,
+  appSecretInLogs,
+];
 
 const only = process.env.SCENARIO;
 const selected = only ? scenarios.filter((s) => s.name === only) : scenarios;

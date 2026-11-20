@@ -41,7 +41,7 @@ Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `
 ## Code style
 
 - **Testable by construction.** Pass dependencies in (as `ToolContext` does) instead of importing them; keep I/O at the edges and logic in pure functions that tests can call directly. If something is hard to test, change the design, not the test.
-- **Readable over clever.** Small functions, descriptive names, early returns, no deep nesting. Follow the existing shape of the code before inventing a new one.
+- **Readable over clever.** Small functions, descriptive names, early returns, no deep nesting. One idea per line: name intermediate values instead of nesting spreads, `??` chains and `map`s in a single expression. No bare `true`/`false` arguments; use a named string union or an options object. Follow the existing shape of the code before inventing a new one.
 - **Few comments.** Code and names say _what_; comment only the _why_ that the code can't show (a security reason, a non-obvious constraint, a workaround). No comments restating the line below, no commented-out code.
 - **Immutable by default.** `const` over `let`; `readonly` fields and `ReadonlyArray`/`Readonly<T>` in types; `as const` for fixed tables; build new objects/arrays (spread, `map`, `filter`) instead of mutating inputs. `readonly` is compile-time only; use `Object.freeze` only where runtime protection matters.
 - **Composition over inheritance.** Plain objects, interfaces and functions; wrap or combine instead of subclassing. Classes only where the language expects them (e.g. `Error` subclasses for `instanceof`).

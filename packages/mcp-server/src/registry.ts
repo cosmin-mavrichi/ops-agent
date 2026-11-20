@@ -1,6 +1,6 @@
-import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
+import type { CallToolResult, McpServer, ServerContext } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { TimeoutError, truncate, withTimeout } from "./lib/limits.js";
+import { CancelledError, TimeoutError, truncate, withTimeout } from "./lib/limits.js";
 import type { Redactor } from "./lib/redact.js";
 import { Level, ToolError, type ToolContext, type ToolDef } from "./types.js";
 
@@ -43,7 +43,7 @@ export function registerTools(server: McpServer, defs: ToolDef<any>[], opts: Reg
     const maxChars = def.maxOutputChars ?? opts.defaultMaxOutputChars ?? 12_000;
     const schema = z.object(def.input).strict();
 
-    const handler = async (rawArgs: unknown): Promise<CallToolResult> => {
+    const handler = async (rawArgs: unknown, ctx?: ServerContext): Promise<CallToolResult> => {
       const started = Date.now();
       const finish = (ok: boolean, args: unknown, error?: string) =>
         opts.audit?.({ tool: def.name, level: def.level, args, ok, durationMs: Date.now() - started, error });
@@ -56,7 +56,11 @@ export function registerTools(server: McpServer, defs: ToolDef<any>[], opts: Reg
       }
 
       try {
-        const data = await withTimeout(timeoutMs, (signal) => def.run(parsed.data, opts.context(signal)));
+        const data = await withTimeout(
+          timeoutMs,
+          (signal) => def.run(parsed.data, opts.context(signal)),
+          ctx?.mcpReq.signal,
+        );
         const text = truncate(opts.redact(JSON.stringify(data, null, 2)), maxChars);
         finish(true, parsed.data);
         return { content: [{ type: "text", text }] };
@@ -68,6 +72,10 @@ export function registerTools(server: McpServer, defs: ToolDef<any>[], opts: Reg
         if (err instanceof TimeoutError) {
           finish(false, parsed.data, "timeout");
           return errorResult("timeout", `${def.name} did not finish within ${timeoutMs}ms`);
+        }
+        if (err instanceof CancelledError) {
+          finish(false, parsed.data, "cancelled");
+          return errorResult("cancelled", `${def.name} was cancelled by the client`);
         }
         // Unknown errors may carry connection strings, hosts, stack traces: log locally, show nothing.
         const detail = err instanceof Error ? err.message : String(err);

@@ -1,5 +1,5 @@
 import { ProtocolError } from "@modelcontextprotocol/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { allTools } from "../../src/tools/index.js";
 import { Level, ToolError, defineTool, type ToolDef } from "../../src/types.js";
@@ -76,6 +76,24 @@ describe("call pipeline", () => {
     const res = await h.call("slow");
     expect(res.isError).toBe(true);
     expect(res.json.error).toBe("timeout");
+  });
+
+  it("aborts the tool when the client cancels the request", async () => {
+    let toolSignal: AbortSignal | undefined;
+    const hang: ToolDef<any> = {
+      ...echo, name: "hang", input: {},
+      run: (_args, { signal }) => { toolSignal = signal; return new Promise(() => {}); },
+    };
+    h = await startHarness({ tools: [hang] });
+    const client = new AbortController();
+
+    const call = h.client.callTool({ name: "hang", arguments: {} }, { signal: client.signal });
+    await vi.waitFor(() => expect(toolSignal).toBeDefined());
+    client.abort();
+
+    await expect(call).rejects.toThrow();
+    await vi.waitFor(() => expect(h?.audit.at(-1)?.error).toBe("cancelled"));
+    expect(toolSignal?.aborted).toBe(true);
   });
 
   it("passes ToolError messages through, hides unexpected errors", async () => {

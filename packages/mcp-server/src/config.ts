@@ -16,6 +16,8 @@ const Env = z.object({
   OPS_K8S_CA_FILE: z.string().default(`${SA_DIR}/ca.crt`),
   KUBERNETES_SERVICE_HOST: z.string().optional(),
   KUBERNETES_SERVICE_PORT: z.string().default("443"),
+  /** Redis URL with the ops_ro ACL user, e.g. redis://ops_ro:pw@redis:6379. Unset = no Redis tools. */
+  OPS_REDIS_URL: z.url({ protocol: /^rediss?$/ }).optional(),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -24,12 +26,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     // v1 guard: refuse to boot with write tools until v2 adds approvals.
     throw new Error("OPS_MAX_LEVEL > 1 is not supported in v1");
   }
-  const pgPassword = passwordIn(vars.OPS_PG_URL);
-  const knownSecrets = splitList(vars.OPS_KNOWN_SECRETS);
+  const urlPasswords = [vars.OPS_PG_URL, vars.OPS_REDIS_URL].map(passwordIn).filter((pw) => pw !== undefined);
   return {
     pgUrl: vars.OPS_PG_URL,
+    redisUrl: vars.OPS_REDIS_URL,
     maxLevel: vars.OPS_MAX_LEVEL as Level,
-    knownSecrets: pgPassword ? [...knownSecrets, pgPassword] : knownSecrets,
+    knownSecrets: [...splitList(vars.OPS_KNOWN_SECRETS), ...urlPasswords],
     k8s: k8sConfig(vars),
   };
 }
@@ -57,7 +59,8 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
-function passwordIn(url: string): string | undefined {
+function passwordIn(url: string | undefined): string | undefined {
+  if (!url) return undefined;
   try {
     return decodeURIComponent(new URL(url).password) || undefined;
   } catch {

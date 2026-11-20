@@ -63,3 +63,25 @@ describe("loadConfig: kubernetes", () => {
     expect(() => loadConfig({ ...base, OPS_K8S_NAMESPACES: "app" })).toThrow(/no API server/);
   });
 });
+
+describe("loadConfig: redis", () => {
+  const base = { OPS_PG_URL: PG_URL };
+
+  it("leaves Redis off when no URL is set", () => {
+    expect(loadConfig(base).redisUrl).toBeUndefined();
+  });
+
+  it("scrubs the Redis password along with the database one", () => {
+    const cfg = loadConfig({ ...base, OPS_REDIS_URL: "redis://ops_ro:redis-pass-3391@cache:6379" });
+    expect(cfg.redisUrl).toBe("redis://ops_ro:redis-pass-3391@cache:6379");
+    expect(cfg.knownSecrets).toEqual(["pg-pass-7781", "redis-pass-3391"]);
+  });
+
+  it.each(["cache:6379", "http://cache:6379", "not a url"])("rejects %j as a Redis URL", (url) => {
+    expect(() => loadConfig({ ...base, OPS_REDIS_URL: url })).toThrow();
+  });
+
+  it("accepts TLS URLs", () => {
+    expect(loadConfig({ ...base, OPS_REDIS_URL: "rediss://ops_ro:pw-123456@cache:6380" }).redisUrl).toBeDefined();
+  });
+});

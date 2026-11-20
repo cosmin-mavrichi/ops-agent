@@ -3,11 +3,12 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { createK8sClient } from "./adapters/k8s.js";
 import { createPgClient } from "./adapters/pg.js";
+import { createRedisClient } from "./adapters/redis.js";
 import { type K8sSettings, loadConfig } from "./config.js";
 import { createRedactor } from "./lib/redact.js";
 import { type RegistryOptions, registerTools } from "./registry.js";
 import { allTools, toolsFor } from "./tools/index.js";
-import type { Adapter, K8sClient } from "./types.js";
+import type { Adapter, K8sClient, RedisClient } from "./types.js";
 
 const cfg = loadConfig();
 
@@ -21,13 +22,13 @@ const pg = createPgClient({
 });
 
 const k8s = cfg.k8s ? k8sClientFrom(cfg.k8s) : k8sNotConfigured();
-const configured: Adapter[] = cfg.k8s ? ["pg", "k8s"] : ["pg"];
-const tools = toolsFor(allTools, configured);
+const redis = cfg.redisUrl ? redisClientFrom(cfg.redisUrl) : redisNotConfigured();
+const tools = toolsFor(allTools, configuredAdapters());
 
 const registryOpts: RegistryOptions = {
   maxLevel: cfg.maxLevel,
   redact,
-  context: (signal) => ({ pg, k8s, signal, log }),
+  context: (signal) => ({ pg, k8s, redis, signal, log }),
   audit: (e) => log("tool_call", { ...e }),
 };
 
@@ -61,10 +62,28 @@ function k8sClientFrom(settings: K8sSettings): K8sClient {
   });
 }
 
-/** Never called: without k8s settings the k8s tools are not exposed (see toolsFor). */
-function k8sNotConfigured(): K8sClient {
-  const fail = async (): Promise<never> => {
-    throw new Error("kubernetes is not configured");
+function redisClientFrom(url: string): RedisClient {
+  return createRedisClient({ url, onError: (err) => log("redis_error", { error: redact(err.message) }) });
+}
+
+function configuredAdapters(): Adapter[] {
+  const adapters: Adapter[] = ["pg"];
+  if (cfg.k8s) adapters.push("k8s");
+  if (cfg.redisUrl) adapters.push("redis");
+  return adapters;
+}
+
+// Never called: tools for an adapter that isn't configured are not exposed (see toolsFor).
+function notConfigured(adapter: string) {
+  return async (): Promise<never> => {
+    throw new Error(`${adapter} is not configured`);
   };
-  return { namespaces: [], getJson: fail, getText: fail };
+}
+
+function k8sNotConfigured(): K8sClient {
+  return { namespaces: [], getJson: notConfigured("kubernetes"), getText: notConfigured("kubernetes") };
+}
+
+function redisNotConfigured(): RedisClient {
+  return { send: notConfigured("redis") };
 }

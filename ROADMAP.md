@@ -58,12 +58,13 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Server-side query cancellation.** A timed-out query keeps running until `statement_timeout` (5s); with a pool
   of 2, two hung calls can block it for up to 5s. Acceptable for v1.
 - **`client_addr` in `pg_activity`.** Internal IPs are returned unredacted; decide whether to keep them.
-- **CI hardening.** Pin GitHub Actions to commit SHAs once the repo is on GitHub.
 - **Dependency policy cleanup.** Drop the `minimumReleaseAgeExclude` entries for vitest 5.1.1 once it is older than
   7 days.
 
 ## Decisions
 
+- **CI actions pinned to commit SHAs** (2026-11-20), updated by Dependabot with a 7-day cooldown, matching the
+  npm `minimumReleaseAge` policy. Checkout doesn't persist the token; setup-node caching is off.
 - **No two-phase commit.** `max_prepared_transactions` stays 0; cross-system consistency uses an outbox (one local
   transaction, then a relay). So `pg_blocking` doesn't need `pg_prepared_xacts` support (they would show as pid 0).
 - **Platform: k3s, not Docker Compose** (2026-11-20). RBAC gives read-only access natively (no Docker socket proxy),

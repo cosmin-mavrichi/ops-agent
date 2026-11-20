@@ -1,0 +1,12 @@
+# Keeps the SHA-pinned actions in .github/workflows up to date. npm packages are governed by
+# pnpm-workspace.yaml (minimumReleaseAge) instead.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci

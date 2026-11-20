@@ -45,7 +45,7 @@ describe.each(selected)("$name", (scenario) => {
   const everyOutput: string[] = [];
 
   beforeAll(async () => {
-    lab = await startLab();
+    lab = await startLab(scenario.mountedSecrets);
     await scenario.break(lab);
   }, 360_000);
 

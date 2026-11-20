@@ -13,6 +13,8 @@ export const appSecretInLogs: Scenario = {
     "The api fails to authenticate to the database; its logs expose the credential (and its payment API key) " +
     "in free text.",
   secrets: [DB_PASSWORD, PAYMENT_API_KEY],
+  // The operator gives the ops pod a copy of the api's Secret, for redaction only.
+  mountedSecrets: { DB_PASSWORD, PAYMENT_API_KEY },
 
   async break(lab) {
     await lab.k3s.apply(`

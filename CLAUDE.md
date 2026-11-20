@@ -24,6 +24,7 @@ pnpm lint          # Biome: lint + format check (pnpm lint:fix to apply)
 pnpm typecheck
 pnpm test          # unit tests, no dependencies
 pnpm test:int      # integration tests, needs Docker (Testcontainers: postgres:16-alpine, privileged rancher/k3s)
+pnpm lab           # fault lab, needs Docker; one scenario: SCENARIO=crash-loop pnpm lab
 pnpm build
 ```
 
@@ -82,6 +83,8 @@ Rules for adding a tool:
 - an integration test against the real service,
 - at least one secret planted in its fixture that must not appear in output,
 - updating the inline snapshot in `registry.test.ts` ("real v1 tool list"); it exists so surface changes are deliberate.
+
+**Fault lab** (`lab/`): each scenario (`lab/scenarios/*.ts`) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`.
 
 Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 

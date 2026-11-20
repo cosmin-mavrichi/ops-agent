@@ -30,12 +30,12 @@ deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
 
 ## Tests
 
-| Layer          | Command                      | Needs            | What it proves                                                                |
-| -------------- | ---------------------------- | ---------------- | ----------------------------------------------------------------------------- |
-| 1. Unit        | `pnpm test`                  | nothing          | gating, input validation, redaction, timeouts, error hiding, SQL whitelisting |
-| 2. Integration | `pnpm test:int`              | Docker           | each tool against the real service in a throwaway container (Testcontainers)  |
-| 3. Fault lab   | `make lab SCENARIO=…` (next) | Docker           | inject a real failure into a mini stack; tools must surface the evidence      |
-| 4. Agent evals | `pnpm eval` (later)          | Docker + API key | the model finds the root cause, uses only allowed tools, stays under budget   |
+| Layer          | Command                           | Needs            | What it proves                                                                                             |
+| -------------- | --------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1. Unit        | `pnpm test`                       | nothing          | gating, input validation, redaction, timeouts, error hiding, SQL whitelisting                              |
+| 2. Integration | `pnpm test:int`                   | Docker           | each tool against the real service in a throwaway container (Testcontainers)                               |
+| 3. Fault lab   | `pnpm lab` (`SCENARIO=…` for one) | Docker           | break one thing in a fresh k3s + Postgres; the tools must surface the evidence, no planted secret may leak |
+| 4. Agent evals | `pnpm eval` (later)               | Docker + API key | the model finds the root cause, uses only allowed tools, stays under budget                                |
 
 Rule for adding a tool: unit test with a fake adapter + integration test against the real
 service + at least one secret planted in its fixture that must not come out.

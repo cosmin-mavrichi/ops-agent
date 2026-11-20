@@ -11,9 +11,22 @@ export interface SqlClient {
   query<T extends Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
 }
 
+export type QueryParams = Readonly<Record<string, string | number | boolean | undefined>>;
+
+/** Read-only Kubernetes API access. Paths are built by tools from validated names only. */
+export interface K8sClient {
+  /** Namespaces this deployment may inspect; RBAC grants the same set. */
+  readonly namespaces: readonly string[];
+  getJson<T>(path: string, query?: QueryParams, signal?: AbortSignal): Promise<T>;
+  getText(path: string, query?: QueryParams, signal?: AbortSignal): Promise<string>;
+}
+
+export type Adapter = "pg" | "k8s";
+
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
   pg: SqlClient;
+  k8s: K8sClient;
   signal: AbortSignal;
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }
@@ -25,6 +38,8 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
   /** Written for the model: what it returns and when to use it. */
   description: string;
   input: S;
+  /** Adapters the tool calls; a tool is only exposed when all of them are configured. */
+  requires?: readonly Adapter[];
   timeoutMs?: number;
   maxOutputChars?: number;
   run(args: z.infer<z.ZodObject<S>>, ctx: ToolContext): Promise<unknown>;

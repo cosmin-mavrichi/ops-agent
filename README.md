@@ -21,8 +21,11 @@ packages/mcp-server/     the only code that touches infra
   src/tools/pg-sessions.ts pg_activity, pg_blocking — live sessions and lock chains
   src/lib/sql-text.ts    strips literals/comments from live query text
   src/adapters/pg.ts     read-only pool (ops_ro role, read-only session, statement timeout)
+  src/adapters/k8s.ts    read-only Kubernetes client (GET only, ServiceAccount token)
+  src/tools/k8s.ts       k8s_pods, k8s_events; src/tools/k8s-logs.ts: k8s_logs
   test/harness.ts        real MCP server + client over in-memory transport
 deploy/sql/ops_ro.sql    one-time Postgres role setup
+deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
 ```
 
 ## Tests

@@ -64,6 +64,9 @@ describe("level gating", () => {
     const { tools } = await h.client.listTools();
     expect(tools.map((t) => t.name).sort()).toMatchInlineSnapshot(`
       [
+        "k8s_events",
+        "k8s_logs",
+        "k8s_pods",
         "pg_activity",
         "pg_blocking",
         "pg_slow_queries",

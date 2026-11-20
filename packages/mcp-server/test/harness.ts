@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
 import { createRedactor } from "../src/lib/redact.js";
 import { type AuditEntry, registerTools } from "../src/registry.js";
-import { Level, type SqlClient, type ToolDef } from "../src/types.js";
+import { type K8sClient, Level, type SqlClient, type ToolDef } from "../src/types.js";
 
 /**
  * Spins up a real MCP server + client over an in-memory transport.
@@ -12,6 +12,7 @@ import { Level, type SqlClient, type ToolDef } from "../src/types.js";
 export async function startHarness(opts: {
   tools: ToolDef<any>[];
   pg?: SqlClient;
+  k8s?: K8sClient;
   maxLevel?: Level;
   knownSecrets?: string[];
 }) {
@@ -26,6 +27,7 @@ export async function startHarness(opts: {
           throw new Error("no pg in this test");
         },
       },
+      k8s: opts.k8s ?? missingK8s,
       signal,
       log: () => {},
     }),
@@ -59,3 +61,8 @@ export async function startHarness(opts: {
     },
   };
 }
+
+const missing = async (): Promise<never> => {
+  throw new Error("no k8s in this test");
+};
+const missingK8s: K8sClient = { namespaces: [], getJson: missing, getText: missing };

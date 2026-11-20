@@ -185,6 +185,9 @@ importers:
       '@modelcontextprotocol/client':
         specifier: ^2.4.0
         version: 2.4.0
+      '@testcontainers/k3s':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.1)
       '@testcontainers/postgresql':
         specifier: ^12.2.1
         version: 12.2.1(bare-buffer@3.7.1)
@@ -477,6 +480,9 @@ packages:
 
   '@rolldown/pluginutils@1.1.0':
     resolution: {integrity: sha512-K+NU2HDCEem4sClgHH4ZZXwdJeNFkJo+hRk479DIwdIviAPN2hFJH1KHHwg8CxHQXvi0M5XY4deTXINfIiSG6w==}
+
+  '@testcontainers/k3s@12.2.1':
+    resolution: {integrity: sha512-Z1DEv9A+ZD3kTK4CEkxeCkNiJVuzVmOtVcFnOU4dI1CO9vIm3paKdj2fO3xdwI39azemA/BfmPInoQizLL6M6A==}
 
   '@testcontainers/postgresql@12.2.1':
     resolution: {integrity: sha512-MIbI5KjZ9M4SY4+xzxg/w4ZLBeV+Jd6ognXoWn7dh/mhIhBbn7ss0MiZHNg2XbCbu03BW9YQ9+H9xW8PFkJWaA==}
@@ -1689,6 +1695,16 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.1.0': {}
+
+  '@testcontainers/k3s@12.2.1(bare-buffer@3.7.1)':
+    dependencies:
+      tar-stream: 3.2.2(bare-buffer@3.7.1)
+      testcontainers: 12.2.1(bare-buffer@3.7.1)
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
 
   '@testcontainers/postgresql@12.2.1(bare-buffer@3.7.1)':
     dependencies:

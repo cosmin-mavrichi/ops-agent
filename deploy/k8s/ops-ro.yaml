@@ -1,0 +1,40 @@
+# Read-only identity for the ops agent. Apply once: kubectl apply -f deploy/k8s/ops-ro.yaml
+# For each extra namespace the agent may inspect, copy the Role and RoleBinding with that namespace
+# and add it to OPS_K8S_NAMESPACES.
+#
+# Deliberately absent: secrets, configmaps (often hold credentials), pods/exec, pods/portforward,
+# and every write verb. The MCP server's pod must run as this ServiceAccount.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ops
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ops-ro
+  namespace: ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops-ro
+  namespace: app
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-ro
+  namespace: app
+subjects:
+  - kind: ServiceAccount
+    name: ops-ro
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ops-ro

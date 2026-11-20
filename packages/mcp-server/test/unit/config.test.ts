@@ -36,3 +36,30 @@ describe("loadConfig", () => {
     expect(cfg.knownSecrets).toEqual(["key-one", "key-two"]);
   });
 });
+
+describe("loadConfig: kubernetes", () => {
+  const base = { OPS_PG_URL: PG_URL };
+
+  it("leaves kubernetes off when no namespaces are listed", () => {
+    expect(loadConfig({ ...base, KUBERNETES_SERVICE_HOST: "10.43.0.1" }).k8s).toBeUndefined();
+  });
+
+  it("uses the in-cluster API server and mounted ServiceAccount by default", () => {
+    const cfg = loadConfig({ ...base, OPS_K8S_NAMESPACES: "app, jobs", KUBERNETES_SERVICE_HOST: "10.43.0.1" });
+    expect(cfg.k8s).toEqual({
+      server: "https://10.43.0.1:443",
+      namespaces: ["app", "jobs"],
+      tokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+      caFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+    });
+  });
+
+  it("accepts an explicit server for running outside the cluster", () => {
+    const cfg = loadConfig({ ...base, OPS_K8S_NAMESPACES: "app", OPS_K8S_SERVER: "https://k3s.local:6443" });
+    expect(cfg.k8s?.server).toBe("https://k3s.local:6443");
+  });
+
+  it("refuses namespaces without any API server", () => {
+    expect(() => loadConfig({ ...base, OPS_K8S_NAMESPACES: "app" })).toThrow(/no API server/);
+  });
+});

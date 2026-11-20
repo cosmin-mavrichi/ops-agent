@@ -23,7 +23,7 @@ pnpm install
 pnpm lint          # Biome: lint + format check (pnpm lint:fix to apply)
 pnpm typecheck
 pnpm test          # unit tests, no dependencies
-pnpm test:int      # integration tests, needs Docker (Testcontainers, postgres:16-alpine)
+pnpm test:int      # integration tests, needs Docker (Testcontainers: postgres:16-alpine, privileged rancher/k3s)
 pnpm build
 ```
 
@@ -34,7 +34,7 @@ pnpm exec vitest run test/unit/registry.test.ts
 pnpm exec vitest run test/unit -t "hidden tool"
 ```
 
-Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) and `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output). stdout is the MCP channel, so all logging goes to stderr.
+Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) and `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output). Kubernetes tools are exposed only when `OPS_K8S_NAMESPACES` is set (comma-separated allowlist); in a pod the API server, token and CA come from the mounted ServiceAccount, outside one set `OPS_K8S_SERVER` (plus `OPS_K8S_TOKEN_FILE`/`OPS_K8S_CA_FILE`). stdout is the MCP channel, so all logging goes to stderr.
 
 ## Code style
 
@@ -60,6 +60,10 @@ Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `
 
 **Postgres access is read-only in three layers:** the `ops_ro` role has only `pg_monitor` (`deploy/sql/ops_ro.sql`), every pooled session is forced read-only with statement/lock timeouts (`src/adapters/pg.ts`), and tools run fixed SQL with bound parameters. User input may select from a whitelist (see `ORDER_BY` in `src/tools/postgres.ts`) but is never interpolated.
 
+**Kubernetes access is read-only in three layers:** the `ops-ro` ServiceAccount may only `get`/`list`/`watch` pods, pods/log and events in granted namespaces (`deploy/k8s/ops-ro.yaml`; no secrets, configmaps or exec), the adapter only sends GET (`src/adapters/k8s.ts`), and tools refuse namespaces outside `OPS_K8S_NAMESPACES` before calling the API and build paths only from zod-validated Kubernetes names. Pod specs hold `env`/`args`, which often carry secrets: tools read `status` plus image and resource limits only, and the `Pod` type in `src/tools/k8s.ts` deliberately omits those fields.
+
+Tools declare the adapters they need (`requires`); `toolsFor` in `src/tools/index.ts` drops tools whose adapter isn't configured, so they are never exposed.
+
 `src/tools/postgres.ts` (`pg_slow_queries`) is the reference tool; copy its shape for new tools.
 
 Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, which normalizes it), so it must go through `stripLiterals` (`src/lib/sql-text.ts`) before it is returned: literals can hold user data or secrets, and comments can carry text aimed at the model. `src/tools/pg-sessions.ts` (`pg_activity`, `pg_blocking`) does this.
@@ -68,7 +72,9 @@ Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, whi
 
 `test/harness.ts` starts a real MCP server and client over `InMemoryTransport`, so tests go through the actual protocol (`listTools`/`callTool`). Both transport halves must come from the same SDK package.
 
-Integration tests share one container setup: `test/integration/pg-fixture.ts` (`startPostgres`).
+Integration tests share container setups: `test/integration/pg-fixture.ts` (`startPostgres`) and `k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production).
+
+Output is redacted per string before serialization (`registry.ts`); redacting the JSON text corrupts it and misses escaped secrets.
 
 Rules for adding a tool:
 

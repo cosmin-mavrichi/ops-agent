@@ -13,6 +13,7 @@ const MAX_QUERY_TEXT = 1_500;
 export const pgSlowQueries = defineTool({
   name: "pg_slow_queries",
   level: Level.Read,
+  requires: ["pg"],
   title: "Postgres: slowest queries",
   description:
     "Top statements from pg_stat_statements for the application database, with literals already " +

@@ -58,6 +58,7 @@ function toSession(row: SessionRow) {
 export const pgActivity = defineTool({
   name: "pg_activity",
   level: Level.Read,
+  requires: ["pg"],
   title: "Postgres: connections and live sessions",
   description:
     "What Postgres is doing right now. Returns connection usage against max_connections (by state and by " +
@@ -168,6 +169,7 @@ const MAX_LISTED = 20;
 export const pgBlocking = defineTool({
   name: "pg_blocking",
   level: Level.Read,
+  requires: ["pg"],
   title: "Postgres: lock blocking chains",
   description:
     "Which sessions are stuck waiting on locks, and the root blockers holding them up. Each root blocker " +

@@ -34,6 +34,15 @@ pnpm exec vitest run test/unit -t "hidden tool"
 
 Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) and `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output). stdout is the MCP channel, so all logging goes to stderr.
 
+## Code style
+
+- **Testable by construction.** Pass dependencies in (as `ToolContext` does) instead of importing them; keep I/O at the edges and logic in pure functions that tests can call directly. If something is hard to test, change the design, not the test.
+- **Readable over clever.** Small functions, descriptive names, early returns, no deep nesting. Follow the existing shape of the code before inventing a new one.
+- **Few comments.** Code and names say *what*; comment only the *why* that the code can't show (a security reason, a non-obvious constraint, a workaround). No comments restating the line below, no commented-out code.
+- **Immutable by default.** `const` over `let`; `readonly` fields and `ReadonlyArray`/`Readonly<T>` in types; `as const` for fixed tables; build new objects/arrays (spread, `map`, `filter`) instead of mutating inputs. `readonly` is compile-time only; use `Object.freeze` only where runtime protection matters.
+- **Composition over inheritance.** Plain objects, interfaces and functions; wrap or combine instead of subclassing. Classes only where the language expects them (e.g. `Error` subclasses for `instanceof`).
+- **Good practice.** Strict types, no `any` outside tests and the `allTools` array, no swallowed errors, and every change ships with its tests green (`pnpm typecheck && pnpm test`, plus `pnpm test:int` when adapters or SQL change).
+
 ## Architecture
 
 **Tools are plain data.** A tool is a `ToolDef` (`src/types.ts`, built with `defineTool`): name, `Level`, model-facing description, a zod raw shape for input, optional timeout/output limits, and `run(args, ctx)`. Tools never import adapters; they get everything through `ToolContext` (`pg`, `signal`, `log`), so unit tests pass fake clients. `src/tools/index.ts` (`allTools`) is the single source of truth for the exposed surface.

@@ -7,14 +7,18 @@ import { registerTools, type RegistryOptions } from "./registry.js";
 import { allTools } from "./tools/index.js";
 
 const cfg = loadConfig();
-const pg = createPgClient({ connectionString: cfg.pgUrl });
+const redact = createRedactor(cfg.knownSecrets);
 // stdout is the MCP channel — all logging goes to stderr.
 const log = (msg: string, meta?: Record<string, unknown>) =>
   process.stderr.write(JSON.stringify({ t: new Date().toISOString(), msg, ...meta }) + "\n");
+const pg = createPgClient({
+  connectionString: cfg.pgUrl,
+  onError: (err) => log("pg_pool_error", { error: redact(err.message) }),
+});
 
 const registryOpts: RegistryOptions = {
   maxLevel: cfg.maxLevel,
-  redact: createRedactor(cfg.knownSecrets),
+  redact,
   context: (signal) => ({ pg, signal, log }),
   audit: (e) => log("tool_call", { ...e }),
 };

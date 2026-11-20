@@ -5,9 +5,10 @@
  */
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPgClient } from "../../src/adapters/pg.js";
 import { pgSlowQueries } from "../../src/tools/postgres.js";
+import { Level, defineTool } from "../../src/types.js";
 import { startHarness } from "../harness.js";
 
 const OPS_PW = "ops-ro-test-pw-9271";
@@ -17,6 +18,7 @@ let admin: pg.Client;
 let opsPg: ReturnType<typeof createPgClient>;
 let h: Awaited<ReturnType<typeof startHarness>>;
 let opsUrl: string;
+const poolErrors: Error[] = [];
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer("postgres:16-alpine")
@@ -52,7 +54,7 @@ beforeAll(async () => {
   url.username = "ops_ro";
   url.password = OPS_PW;
   opsUrl = url.toString();
-  opsPg = createPgClient({ connectionString: opsUrl });
+  opsPg = createPgClient({ connectionString: opsUrl, onError: (err) => poolErrors.push(err) });
   h = await startHarness({ tools: [pgSlowQueries], pg: opsPg, knownSecrets: [OPS_PW] });
 }, 120_000);
 
@@ -107,5 +109,37 @@ describe("ops_ro role is actually read-only", () => {
     } finally {
       await c.end();
     }
+  });
+});
+
+describe("adapter under failure", () => {
+  it("times out a hung query on time, and Postgres ends it within statement_timeout", async () => {
+    const sleepy = defineTool({
+      name: "sleepy", level: Level.Read, title: "sleepy", description: "test",
+      input: {}, timeoutMs: 300,
+      run: (_args, { pg }) => pg.query("SELECT pg_sleep(30)"),
+    });
+    const th = await startHarness({ tools: [sleepy], pg: opsPg });
+    try {
+      const started = Date.now();
+      const res = await th.call("sleepy");
+      expect(res.json.error).toBe("timeout");
+      expect(Date.now() - started).toBeLessThan(2_000);
+      await expect(opsPg.query("SELECT 1 AS ok")).resolves.toEqual([{ ok: 1 }]);
+
+      const stillRunning = () =>
+        admin.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)' AND state = 'active'");
+      await vi.waitFor(async () => expect((await stillRunning()).rows[0].n).toBe(0), { timeout: 8_000, interval: 250 });
+    } finally {
+      await th.close();
+    }
+  }, 15_000);
+
+  it("survives Postgres killing its idle connections", async () => {
+    await opsPg.query("SELECT 1");
+    await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'ops-mcp'");
+
+    await vi.waitFor(() => expect(poolErrors.length).toBeGreaterThan(0));
+    await expect(opsPg.query("SELECT 1 AS ok")).resolves.toEqual([{ ok: 1 }]);
   });
 });

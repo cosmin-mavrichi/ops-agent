@@ -4,6 +4,8 @@ import type { SqlClient } from "../types.js";
 export interface PgConfig {
   connectionString: string; // must use the ops_ro role (see deploy/sql/ops_ro.sql)
   statementTimeoutMs?: number;
+  /** Idle connections can fail (e.g. Postgres restarts); without a handler Node crashes the process. */
+  onError: (err: Error) => void;
 }
 
 /**
@@ -22,6 +24,7 @@ export function createPgClient(cfg: PgConfig): SqlClient & { end(): Promise<void
     application_name: "ops-mcp",
     options: `-c default_transaction_read_only=on -c statement_timeout=${timeout} -c lock_timeout=1000`,
   });
+  pool.on("error", cfg.onError);
 
   return {
     async query<T extends Record<string, unknown>>(sql: string, params: unknown[] = []) {

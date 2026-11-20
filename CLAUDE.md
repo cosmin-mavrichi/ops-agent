@@ -77,6 +77,6 @@ Rules for adding a tool:
 - at least one secret planted in its fixture that must not appear in output,
 - updating the inline snapshot in `registry.test.ts` ("real v1 tool list"); it exists so surface changes are deliberate.
 
-Planned, not yet present: fault lab (`make lab SCENARIO=…`) and agent evals (`pnpm eval`).
+Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 
 SDK v2 behaviour to know: calling an unknown/hidden tool rejects with a `ProtocolError` (not an `isError` result).

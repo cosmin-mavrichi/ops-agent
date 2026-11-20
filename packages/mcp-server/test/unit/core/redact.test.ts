@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRedactor } from "../../src/lib/redact.js";
+import { createRedactor } from "../../../src/lib/redact.js";
 
 const redact = createRedactor(["S3cr3t-DB-Pass!", "sk_live_abcdef123456"]);
 

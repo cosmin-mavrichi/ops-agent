@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { pgSlowQueries } from "../../src/tools/postgres.js";
-import type { SqlClient } from "../../src/types.js";
-import { startHarness } from "../harness.js";
+import { pgSlowQueries } from "../../../src/tools/postgres.js";
+import type { SqlClient } from "../../../src/types.js";
+import { startHarness } from "../../harness.js";
 
 /** Fake that records SQL and answers by matching on the statement. */
 function fakePg(opts: { extension?: boolean } = {}) {

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { statusError } from "../../src/adapters/k8s.js";
-import { toolsFor } from "../../src/tools/index.js";
-import { type K8sEvent, k8sEvents, k8sPods, type Pod, summarizeEvents, summarizePod } from "../../src/tools/k8s.js";
-import { k8sLogs, UNTRUSTED_NOTE } from "../../src/tools/k8s-logs.js";
-import { defineTool, type K8sClient, Level, ToolError } from "../../src/types.js";
-import { startHarness } from "../harness.js";
+import { statusError } from "../../../src/adapters/k8s.js";
+import { toolsFor } from "../../../src/tools/index.js";
+import { type K8sEvent, k8sEvents, k8sPods, type Pod, summarizeEvents, summarizePod } from "../../../src/tools/k8s.js";
+import { k8sLogs, UNTRUSTED_NOTE } from "../../../src/tools/k8s-logs.js";
+import { defineTool, type K8sClient, Level, ToolError } from "../../../src/types.js";
+import { startHarness } from "../../harness.js";
 
 const NOW = new Date("2026-11-20T12:00:00Z");
 const ago = (s: number) => new Date(NOW.getTime() - s * 1000).toISOString();

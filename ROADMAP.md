@@ -10,8 +10,8 @@ Meilisearch on k3s (single node to start). One branch per step; merge to `main` 
 | 1   | Hardening: pg pool error handler, client cancellation, config tests, real-Postgres timeout test, CI, Biome                                                                                                                    | done    |
 | 2   | `pg_activity` (connections, live sessions) and `pg_blocking` (lock chains, root blockers)                                                                                                                                     | done    |
 | 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                                           | done    |
-| 4   | Fault lab (throwaway k3d/kind cluster + `make lab SCENARIO=…`): crash-looping worker, lock contention, prompt-injection log line                                                                                              | next    |
-| 5   | Redis, disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: Redis maxmemory, volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | planned |
+| 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                                                | done    |
+| 5   | Redis, disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: Redis maxmemory, volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | next    |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                                       | planned |
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
@@ -53,8 +53,8 @@ Smaller items, not tied to a step. Move into a step when picked up.
 
 - **Prompt injection.** Tool output reaches the model as-is. Low risk while v1 is read-only; becomes real with the
   logs and events tools (step 3). Cover it in the lab (step 4) and evals (step 6).
-- **Record tool responses.** Step 6 replay needs the redacted output of each call; the audit entry stores only
-  args and outcome today.
+- **Record tool responses.** The lab saves each scenario's redacted tool outputs to `lab/results/`; step 6 replay
+  still needs that per agent run, not just per lab run.
 - **Server-side query cancellation.** A timed-out query keeps running until `statement_timeout` (5s); with a pool
   of 2, two hung calls can block it for up to 5s. Acceptable for v1.
 - **`client_addr` in `pg_activity`.** Internal IPs are returned unredacted; decide whether to keep them.
@@ -70,3 +70,5 @@ Smaller items, not tied to a step. Move into a step when picked up.
   events and pod status give structured evidence, and `rollout restart` / `rollout undo` make v2 actions reversible.
   Start single-node; Postgres via the CloudNativePG operator. Pod specs can hold env values, so adapters build output
   from status fields and never return `env`.
+- **Fault lab uses Testcontainers, not k3d/kind + make** (2026-11-20). Same k3s and Postgres fixtures as the integration
+  tests, so no extra tools to install locally or in CI.

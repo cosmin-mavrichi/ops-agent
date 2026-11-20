@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { pgActivity, pgBlocking, rootBlockers } from "../../src/tools/pg-sessions.js";
-import type { SqlClient } from "../../src/types.js";
-import { startHarness } from "../harness.js";
+import { pgActivity, pgBlocking, rootBlockers } from "../../../src/tools/pg-sessions.js";
+import type { SqlClient } from "../../../src/types.js";
+import { startHarness } from "../../harness.js";
 
 const PLANTED = "tok-planted-9911";
 

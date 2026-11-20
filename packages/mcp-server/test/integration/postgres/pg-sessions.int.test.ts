@@ -1,8 +1,8 @@
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPgClient } from "../../src/adapters/pg.js";
-import { pgActivity, pgBlocking } from "../../src/tools/pg-sessions.js";
-import { startHarness } from "../harness.js";
+import { createPgClient } from "../../../src/adapters/pg.js";
+import { pgActivity, pgBlocking } from "../../../src/tools/pg-sessions.js";
+import { startHarness } from "../../harness.js";
 import { APP_NAME, OPS_PW, type PgFixture, startPostgres } from "./pg-fixture.js";
 
 const PLANTED = "tok-planted-in-live-query-5531";

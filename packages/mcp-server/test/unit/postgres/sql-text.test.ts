@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripLiterals } from "../../src/lib/sql-text.js";
+import { stripLiterals } from "../../../src/lib/sql-text.js";
 
 describe("stripLiterals", () => {
   it.each([

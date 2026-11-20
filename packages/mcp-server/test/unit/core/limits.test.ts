@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CancelledError, TimeoutError, truncate, withTimeout } from "../../src/lib/limits.js";
+import { CancelledError, TimeoutError, truncate, withTimeout } from "../../../src/lib/limits.js";
 
 const never = () => new Promise<never>(() => {});
 

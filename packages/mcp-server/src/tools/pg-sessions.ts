@@ -173,7 +173,8 @@ export const pgBlocking = defineTool({
     "Which sessions are stuck waiting on locks, and the root blockers holding them up. Each root blocker " +
     "comes with its state, transaction age and query, plus how many sessions it blocks directly or through " +
     "a chain. A root that is 'idle in transaction' is usually an application that opened a transaction and " +
-    "never finished it. pid 0 means a prepared transaction. Literals in query text are replaced with ?.",
+    "never finished it; its query is the last statement it ran, not necessarily the one that took the lock. " +
+    "pid 0 means a prepared transaction. Literals in query text are replaced with ?.",
   input: {},
   timeoutMs: 8_000,
 

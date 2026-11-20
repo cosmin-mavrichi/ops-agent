@@ -36,7 +36,7 @@ pnpm exec vitest run test/unit/k8s          # one area
 pnpm exec vitest run test/unit -t "hidden tool"
 ```
 
-Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) and `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output). Kubernetes tools are exposed only when `OPS_K8S_NAMESPACES` is set (comma-separated allowlist); in a pod the API server, token and CA come from the mounted ServiceAccount, outside one set `OPS_K8S_SERVER` (plus `OPS_K8S_TOKEN_FILE`/`OPS_K8S_CA_FILE`). Redis/Valkey tools are exposed only when `OPS_REDIS_URL` is set, with the `ops_ro` ACL user in the URL. stdout is the MCP channel, so all logging goes to stderr.
+Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output) and `OPS_KNOWN_SECRETS_DIR` (a mounted Kubernetes Secret, one value per file, read once at boot by `readSecretsDir` in `src/lib/known-secrets.ts`; Secret volume keys are symlinks into `..data`, so it follows symlinks and skips `..` entries; the values go only to the redactor). Kubernetes tools are exposed only when `OPS_K8S_NAMESPACES` is set (comma-separated allowlist); in a pod the API server, token and CA come from the mounted ServiceAccount, outside one set `OPS_K8S_SERVER` (plus `OPS_K8S_TOKEN_FILE`/`OPS_K8S_CA_FILE`). Redis/Valkey tools are exposed only when `OPS_REDIS_URL` is set, with the `ops_ro` ACL user in the URL. stdout is the MCP channel, so all logging goes to stderr.
 
 ## Code style
 
@@ -88,7 +88,7 @@ Rules for adding a tool:
 - at least one secret planted in its fixture that must not appear in output,
 - updating the inline snapshot in `registry.test.ts` ("real v1 tool list"); it exists so surface changes are deliberate.
 
-**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres + Valkey, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`.
+**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres + Valkey, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`. A scenario's optional `mountedSecrets` are put in a real Secret in `ops`, mounted into a pod, copied out (symlinks included) and read with `readSecretsDir`, exactly the production path; `secrets` is the leak list and can include values nobody gave the agent.
 
 Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 

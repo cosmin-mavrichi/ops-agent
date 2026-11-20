@@ -5,6 +5,7 @@ import { createK8sClient } from "./adapters/k8s.js";
 import { createPgClient } from "./adapters/pg.js";
 import { createRedisClient } from "./adapters/redis.js";
 import { type K8sSettings, loadConfig } from "./config.js";
+import { readSecretsDir } from "./lib/known-secrets.js";
 import { createRedactor } from "./lib/redact.js";
 import { type RegistryOptions, registerTools } from "./registry.js";
 import { allTools, toolsFor } from "./tools/index.js";
@@ -12,10 +13,10 @@ import type { Adapter, K8sClient, RedisClient } from "./types.js";
 
 const cfg = loadConfig();
 
-const redact = createRedactor(cfg.knownSecrets);
 // stdout is the MCP channel — all logging goes to stderr.
 const log = (msg: string, meta?: Record<string, unknown>) =>
   process.stderr.write(`${JSON.stringify({ t: new Date().toISOString(), msg, ...meta })}\n`);
+const redact = createRedactor([...cfg.knownSecrets, ...secretsFromDir()]);
 const pg = createPgClient({
   connectionString: cfg.pgUrl,
   onError: (err) => log("pg_pool_error", { error: redact(err.message) }),
@@ -60,6 +61,12 @@ function k8sClientFrom(settings: K8sSettings): K8sClient {
     token: () => readFileSync(settings.tokenFile, "utf8").trim(),
     namespaces: settings.namespaces,
   });
+}
+
+/** App secrets mounted for redaction only; nothing else may read them, and they are never logged. */
+function secretsFromDir(): string[] {
+  if (!cfg.knownSecretsDir) return [];
+  return readSecretsDir(cfg.knownSecretsDir, (message) => log("known_secrets_warning", { message }));
 }
 
 function redisClientFrom(url: string): RedisClient {

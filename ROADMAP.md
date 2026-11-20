@@ -59,6 +59,12 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Server-side query cancellation.** A timed-out query keeps running until `statement_timeout` (5s); with a pool
   of 2, two hung calls can block it for up to 5s. Acceptable for v1.
 - **`client_addr` in `pg_activity`.** Internal IPs are returned unredacted; decide whether to keep them.
+- **Secret rotation.** `OPS_KNOWN_SECRETS_DIR` is read once at boot, so a rotated secret needs a restart;
+  re-read the directory when kubelet swaps `..data`.
+- **High-entropy token redaction** as a fallback for secrets nobody listed. Needs its own false-positive tests
+  (image digests, `pod-template-hash`, UUIDs, request ids), so a separate PR.
+- **Encoded known secrets.** Exact matching misses a known secret that appears base64- or URL-encoded in output;
+  redact those forms too.
 - **Dependency policy cleanup.** Drop the `minimumReleaseAgeExclude` entries for vitest 5.1.1 once it is older than
   7 days.
 

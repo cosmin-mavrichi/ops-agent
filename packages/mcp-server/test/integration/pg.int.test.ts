@@ -3,17 +3,15 @@
  * Random port, fresh data, removed afterwards — nothing shared with your machine or other runs.
  * Requires Docker. Run: pnpm test:int
  */
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPgClient } from "../../src/adapters/pg.js";
 import { pgSlowQueries } from "../../src/tools/postgres.js";
 import { defineTool, Level } from "../../src/types.js";
 import { startHarness } from "../harness.js";
+import { OPS_PW, type PgFixture, startPostgres } from "./pg-fixture.js";
 
-const OPS_PW = "ops-ro-test-pw-9271";
-
-let container: StartedPostgreSqlContainer;
+let db: PgFixture;
 let admin: pg.Client;
 let opsPg: ReturnType<typeof createPgClient>;
 let h: Awaited<ReturnType<typeof startHarness>>;
@@ -21,27 +19,9 @@ let opsUrl: string;
 const poolErrors: Error[] = [];
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:16-alpine")
-    .withDatabase("app")
-    .withCommand([
-      "postgres",
-      "-c",
-      "shared_preload_libraries=pg_stat_statements",
-      "-c",
-      "pg_stat_statements.track=top",
-      "-c",
-      "pg_stat_statements.track_utility=on", // on deliberately: proves redaction catches PASSWORD literals
-    ])
-    .start();
-
-  admin = new pg.Client({ connectionString: container.getConnectionUri() });
-  await admin.connect();
-
-  // Same setup as deploy/sql/ops_ro.sql
-  await admin.query("CREATE EXTENSION pg_stat_statements");
-  await admin.query(`CREATE ROLE ops_ro LOGIN PASSWORD '${OPS_PW}' CONNECTION LIMIT 3`);
-  await admin.query("GRANT pg_monitor TO ops_ro");
-  await admin.query("ALTER ROLE ops_ro SET default_transaction_read_only = on");
+  db = await startPostgres();
+  admin = db.admin;
+  opsUrl = db.opsUrl;
 
   // Fixture workload: one table, a slow statement, a chatty statement, and a secret-bearing utility statement.
   await admin.query("CREATE TABLE reviews (id serial primary key, product_id int, body text)");
@@ -55,10 +35,6 @@ beforeAll(async () => {
   await admin.query("CREATE ROLE app_user LOGIN");
   await admin.query("ALTER ROLE app_user PASSWORD 'leaked-in-stats-1234'");
 
-  const url = new URL(container.getConnectionUri());
-  url.username = "ops_ro";
-  url.password = OPS_PW;
-  opsUrl = url.toString();
   opsPg = createPgClient({ connectionString: opsUrl, onError: (err) => poolErrors.push(err) });
   h = await startHarness({ tools: [pgSlowQueries], pg: opsPg, knownSecrets: [OPS_PW] });
 }, 120_000);
@@ -66,8 +42,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await h?.close();
   await opsPg?.end();
-  await admin?.end();
-  await container?.stop();
+  await db?.stop();
 });
 
 describe("pg_slow_queries against real Postgres", () => {

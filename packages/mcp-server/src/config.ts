@@ -8,6 +8,8 @@ const Env = z.object({
   OPS_MAX_LEVEL: z.coerce.number().int().min(1).max(3).default(1),
   /** Comma-separated values to scrub verbatim from all output (app DB password, API keys…). */
   OPS_KNOWN_SECRETS: z.string().default(""),
+  /** Directory with one secret value per file (a mounted Kubernetes Secret), scrubbed like OPS_KNOWN_SECRETS. */
+  OPS_KNOWN_SECRETS_DIR: z.string().min(1).optional(),
   /** Comma-separated namespaces the agent may inspect. Unset = no Kubernetes tools. */
   OPS_K8S_NAMESPACES: z.string().default(""),
   /** Out-of-cluster overrides; in a pod the defaults come from the mounted ServiceAccount. */
@@ -32,6 +34,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     redisUrl: vars.OPS_REDIS_URL,
     maxLevel: vars.OPS_MAX_LEVEL as Level,
     knownSecrets: [...splitList(vars.OPS_KNOWN_SECRETS), ...urlPasswords],
+    knownSecretsDir: vars.OPS_KNOWN_SECRETS_DIR,
     k8s: k8sConfig(vars),
   };
 }

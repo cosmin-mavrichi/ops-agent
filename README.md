@@ -24,9 +24,37 @@ All settings are environment variables. stdout is the MCP channel; logs go to st
 | `OPS_K8S_SERVER`                        | no       | API server URL when running outside the cluster (in a pod the ServiceAccount provides it)        |
 | `OPS_K8S_TOKEN_FILE`, `OPS_K8S_CA_FILE` | no       | override the mounted ServiceAccount token and CA paths                                           |
 | `OPS_KNOWN_SECRETS`                     | no       | comma-separated values scrubbed verbatim from all output                                         |
+| `OPS_KNOWN_SECRETS_DIR`                 | no       | directory with one value per file (a mounted Kubernetes Secret), scrubbed the same way           |
 | `OPS_MAX_LEVEL`                         | no       | must be `1` (read-only) in v1; anything higher refuses to boot                                   |
 
 Passwords in `OPS_PG_URL` and `OPS_REDIS_URL` are scrubbed from output automatically.
+
+### Redacting the applications' own secrets
+
+Patterns only catch secrets in recognisable forms (`password=…`, URLs with credentials, bearer tokens, JWTs). An
+application that logs its own secret in free text (`ERROR auth failed using hunter2-prod`) is only redacted if
+the agent knows the value. Mount the application's Secret into the ops pod and point `OPS_KNOWN_SECRETS_DIR` at it:
+
+```yaml
+volumes:
+  - name: known-secrets
+    secret: { secretName: app-secrets-for-ops }
+containers:
+  - name: ops-agent
+    env: [{ name: OPS_KNOWN_SECRETS_DIR, value: /var/run/secrets/ops-known }]
+    volumeMounts: [{ name: known-secrets, mountPath: /var/run/secrets/ops-known, readOnly: true }]
+```
+
+- The values are used only to build the redactor: never logged, never shown to the model, never in the audit log.
+  Values shorter than 6 characters are skipped with a warning naming the file (redacting them would shred normal
+  text).
+- `deploy/k8s/ops-ro.yaml` is unchanged: the agent still can't read Secrets through the API. The values arrive
+  as a volume.
+- **A Secret volume can only mount a Secret from the pod's own namespace.** The app's Secret lives in `app`, the
+  ops pod in `ops`, so the values have to be copied into `ops`: create both Secrets from the same source (your
+  secret manager or sealed secrets), or use a replicator. This repo doesn't do that for you.
+- Trade-off: the ops pod now holds the app's secrets in memory. Whoever compromises the ops pod can read them.
+- Values are read once at boot; after rotating a secret, restart the agent.
 
 ## Layout (so far)
 

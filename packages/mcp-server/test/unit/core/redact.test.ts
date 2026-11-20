@@ -27,6 +27,19 @@ describe("redact", () => {
     expect(redact(line)).toBe(line);
   });
 
+  it("removes an app secret logged in free text, where no pattern applies", () => {
+    const r = createRedactor(["lab-db-pw-5519", "pk9Qz3Lm7Vx2Rt8Wb4Nc6Hd1"]);
+    expect(r("ERROR auth failed using lab-db-pw-5519")).toBe("ERROR auth failed using ***");
+    expect(r("WARN retrying with key pk9Qz3Lm7Vx2Rt8Wb4Nc6Hd1")).toBe("WARN retrying with key ***");
+  });
+
+  it("matches known secrets literally, even with regex metacharacters", () => {
+    const secret = "a.b*c+(d)?[e]$^|\\f";
+    const r = createRedactor([secret]);
+    expect(r(`using ${secret} now`)).toBe("using *** now");
+    expect(r("using aXbbbc+(d)?[e]$^|\\f now")).toBe("using aXbbbc+(d)?[e]$^|\\f now");
+  });
+
   it("ignores very short 'known secrets' that would shred normal text", () => {
     const r = createRedactor(["ab"]);
     expect(r("table abc")).toBe("table abc");

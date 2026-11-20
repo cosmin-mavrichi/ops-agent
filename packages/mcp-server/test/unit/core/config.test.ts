@@ -85,3 +85,19 @@ describe("loadConfig: redis", () => {
     expect(loadConfig({ ...base, OPS_REDIS_URL: "rediss://ops_ro:pw-123456@cache:6380" }).redisUrl).toBeDefined();
   });
 });
+
+describe("loadConfig: known secrets directory", () => {
+  it("is off when unset", () => {
+    expect(loadConfig({ OPS_PG_URL: PG_URL }).knownSecretsDir).toBeUndefined();
+  });
+
+  it("only records the path; reading it happens at boot (readSecretsDir)", () => {
+    const cfg = loadConfig({ OPS_PG_URL: PG_URL, OPS_KNOWN_SECRETS_DIR: "/var/run/secrets/ops-known" });
+    expect(cfg.knownSecretsDir).toBe("/var/run/secrets/ops-known");
+    expect(cfg.knownSecrets).toEqual(["pg-pass-7781"]);
+  });
+
+  it("rejects an empty path", () => {
+    expect(() => loadConfig({ OPS_PG_URL: PG_URL, OPS_KNOWN_SECRETS_DIR: "" })).toThrow();
+  });
+});

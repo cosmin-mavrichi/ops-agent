@@ -1,5 +1,7 @@
+import { rmSync } from "node:fs";
 import { createPgClient } from "../src/adapters/pg.js";
 import { createRedisClient } from "../src/adapters/redis.js";
+import { readSecretsDir } from "../src/lib/known-secrets.js";
 import { allTools, toolsFor } from "../src/tools/index.js";
 import { startHarness } from "../test/harness.js";
 import { type K3sFixture, startK3s } from "../test/integration/k8s/k8s-fixture.js";
@@ -25,6 +27,11 @@ export interface Scenario {
   readonly rootCause: string;
   /** Values planted in the scenario that must never appear in any tool output. */
   readonly secrets: readonly string[];
+  /**
+   * App secrets the operator mounts into the ops pod for redaction (OPS_KNOWN_SECRETS_DIR), as key → value.
+   * Separate from `secrets`: a scenario can plant secrets nobody told the agent about.
+   */
+  readonly mountedSecrets?: Readonly<Record<string, string>>;
   /** Breaks one thing and waits until the failure is observable. */
   break(lab: Lab): Promise<void>;
   readonly evidence: readonly Evidence[];
@@ -42,15 +49,16 @@ export interface Lab {
   stop(): Promise<void>;
 }
 
-export async function startLab(): Promise<Lab> {
+export async function startLab(mountedSecrets: Readonly<Record<string, string>> = {}): Promise<Lab> {
   const [k3s, db, cache] = await Promise.all([startK3s(), startPostgres(), startRedis("valkey")]);
   const pg = createPgClient({ connectionString: db.opsUrl, onError: () => {} });
+  const appSecrets = await readMountedSecrets(k3s, mountedSecrets);
   const harness = await startHarness({
     tools: toolsFor(allTools, ["pg", "k8s", "redis"]),
     pg,
     k8s: k3s.ops,
     redis: createRedisClient({ url: cache.opsUrl, onError: () => {} }),
-    knownSecrets: [OPS_PW, k3s.token, OPS_REDIS_PW],
+    knownSecrets: [OPS_PW, k3s.token, OPS_REDIS_PW, ...appSecrets],
   });
   const cleanups: Array<() => Promise<unknown>> = [];
 
@@ -67,6 +75,52 @@ export async function startLab(): Promise<Lab> {
       await Promise.all([k3s.stop(), db.stop(), cache.stop()]);
     },
   };
+}
+
+const MOUNT_PATH = "/var/run/secrets/ops-known";
+
+/**
+ * Production path, for real: the values go into a Secret in `ops`, are mounted into a pod running as the
+ * ops ServiceAccount, and the mounted directory (symlinks and all) is read with readSecretsDir.
+ */
+async function readMountedSecrets(k3s: K3sFixture, secrets: Readonly<Record<string, string>>): Promise<string[]> {
+  if (Object.keys(secrets).length === 0) return [];
+
+  const secret = {
+    apiVersion: "v1",
+    kind: "Secret",
+    metadata: { name: "ops-known-secrets", namespace: "ops" },
+    stringData: secrets,
+  };
+  const pod = {
+    apiVersion: "v1",
+    kind: "Pod",
+    metadata: { name: "ops-agent", namespace: "ops" },
+    spec: {
+      serviceAccountName: "ops-ro",
+      containers: [
+        {
+          name: "agent",
+          image: "busybox:1.37",
+          command: ["sleep", "3600"],
+          volumeMounts: [{ name: "known-secrets", mountPath: MOUNT_PATH, readOnly: true }],
+        },
+      ],
+      volumes: [{ name: "known-secrets", secret: { secretName: "ops-known-secrets" } }],
+    },
+  };
+  // JSON is valid YAML, and it quotes the values safely.
+  await k3s.apply([secret, pod].map((manifest) => JSON.stringify(manifest)).join("\n---\n"));
+  await k3s.kubectl("wait", "--for=condition=Ready", "pod/ops-agent", "-n", "ops", "--timeout=150s");
+
+  const dir = await k3s.copyFromPod("ops", "ops-agent", MOUNT_PATH);
+  try {
+    return readSecretsDir(dir, (message) => {
+      throw new Error(`scenario secret unusable: ${message}`);
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** Polls until `check` stops throwing; on timeout rethrows its last error, labelled with `what`. */

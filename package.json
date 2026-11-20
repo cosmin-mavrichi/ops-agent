@@ -9,6 +9,11 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "test:int": "pnpm -r test:int"
+    "test:int": "pnpm -r test:int",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7"
   }
 }

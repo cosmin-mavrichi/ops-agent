@@ -1,0 +1,49 @@
+Copyright (c) 2026 Cosmin Mavrichi. All rights reserved.
+
+PROPRIETARY AND CONFIDENTIAL SOFTWARE LICENSE
+
+This software and its source code, documentation, configuration, deployment
+manifests and all associated files (the "Software") are the exclusive property
+of Cosmin Mavrichi (the "Owner").
+
+The Software is made publicly viewable for reference only. Public visibility
+does not grant any license or right to use it. No license, express or implied,
+by estoppel or otherwise, is granted to any intellectual property right except
+as expressly stated in a separate written agreement signed by the Owner.
+
+Without the Owner's prior written permission, you may NOT:
+
+  1. use, run, execute or deploy the Software, in whole or in part, for any
+     purpose, commercial or non-commercial;
+  2. copy, reproduce, or store the Software, except as automatically done by
+     a web browser or by GitHub's own features solely to view it;
+  3. modify, adapt, translate, or create derivative works based on the
+     Software;
+  4. distribute, publish, sublicense, sell, rent, lease, lend, or otherwise
+     make the Software available to any third party;
+  5. offer the Software, or any functionality derived from it, as a hosted
+     service, SaaS, or managed offering;
+  6. reverse engineer, decompile, or disassemble any compiled form of the
+     Software;
+  7. use the Software, or any part of it, to train, fine-tune, or evaluate
+     machine learning or artificial intelligence models, or include it in any
+     dataset;
+  8. remove or alter any copyright, trademark, or proprietary notice in the
+     Software.
+
+Any contribution submitted to this repository is assigned to the Owner, who
+may use, license, and commercialize it without restriction or compensation,
+unless agreed otherwise in writing.
+
+Any use of the Software not expressly permitted in writing by the Owner is an
+infringement of the Owner's rights and terminates any permission previously
+granted.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+OWNER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+For licensing inquiries, contact the Owner via https://github.com/cosmin-mavrichi.

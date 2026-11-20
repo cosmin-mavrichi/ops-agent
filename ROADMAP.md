@@ -27,10 +27,12 @@ Smaller items, not tied to a step. Move into a step when picked up.
   args and outcome today.
 - **Server-side query cancellation.** A timed-out query keeps running until `statement_timeout` (5s); with a pool
   of 2, two hung calls can block it for up to 5s. Acceptable for v1.
-- **Prepared transactions in `pg_blocking`.** They show as root blocker pid 0 with no details. Only matters if
-  production has `max_prepared_transactions > 0`; then read `pg_prepared_xacts` (gid, age, owner) and add an
-  integration test.
 - **`client_addr` in `pg_activity`.** Internal IPs are returned unredacted; decide whether to keep them.
 - **CI hardening.** Pin GitHub Actions to commit SHAs once the repo is on GitHub.
 - **Dependency policy cleanup.** Drop the `minimumReleaseAgeExclude` entries for vitest 5.1.1 once it is older than
   7 days.
+
+## Decisions
+
+- **No two-phase commit.** `max_prepared_transactions` stays 0; cross-system consistency uses an outbox (one local
+  transaction, then a relay). So `pg_blocking` doesn't need `pg_prepared_xacts` support (they would show as pid 0).

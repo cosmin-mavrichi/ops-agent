@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import { type Lab, type Scenario, until } from "../scenario.js";
+import { type Lab, type Scenario, until } from "../../scenario.js";
 
 const REDIS_PASSWORD = "lab-redis-pw-4471";
 const DB_PASSWORD = "lab-db-pw-8820";

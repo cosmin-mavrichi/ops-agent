@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "../../src/config.js";
-import { Level } from "../../src/types.js";
+import { loadConfig } from "../../../src/config.js";
+import { Level } from "../../../src/types.js";
 
 const PG_URL = "postgres://ops_ro:pg-pass-7781@db:5432/app";
 

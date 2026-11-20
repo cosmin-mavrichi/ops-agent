@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { expect } from "vitest";
-import { type Scenario, until } from "../scenario.js";
+import { type Scenario, until } from "../../scenario.js";
 
 const CARD_TOKEN = "tok_lab_card_5531";
 const WAITERS = 3;

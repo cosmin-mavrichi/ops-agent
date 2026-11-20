@@ -1,8 +1,8 @@
 import { createPgClient } from "../src/adapters/pg.js";
 import { allTools, toolsFor } from "../src/tools/index.js";
 import { startHarness } from "../test/harness.js";
-import { type K3sFixture, startK3s } from "../test/integration/k8s-fixture.js";
-import { OPS_PW, type PgFixture, startPostgres } from "../test/integration/pg-fixture.js";
+import { type K3sFixture, startK3s } from "../test/integration/k8s/k8s-fixture.js";
+import { OPS_PW, type PgFixture, startPostgres } from "../test/integration/postgres/pg-fixture.js";
 
 export type ToolResult = Awaited<ReturnType<Awaited<ReturnType<typeof startHarness>>["call"]>>;
 

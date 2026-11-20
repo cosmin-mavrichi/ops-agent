@@ -1,9 +1,9 @@
 import { ProtocolError } from "@modelcontextprotocol/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { allTools } from "../../src/tools/index.js";
-import { defineTool, Level, type ToolDef, ToolError } from "../../src/types.js";
-import { startHarness } from "../harness.js";
+import { allTools } from "../../../src/tools/index.js";
+import { defineTool, Level, type ToolDef, ToolError } from "../../../src/types.js";
+import { startHarness } from "../../harness.js";
 
 const echo = defineTool({
   name: "echo",

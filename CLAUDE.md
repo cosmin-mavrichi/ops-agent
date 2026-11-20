@@ -31,7 +31,8 @@ pnpm build
 Single test (from `packages/mcp-server`):
 
 ```
-pnpm exec vitest run test/unit/registry.test.ts
+pnpm exec vitest run test/unit/core/registry.test.ts
+pnpm exec vitest run test/unit/k8s          # one area
 pnpm exec vitest run test/unit -t "hidden tool"
 ```
 
@@ -73,7 +74,7 @@ Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, whi
 
 `test/harness.ts` starts a real MCP server and client over `InMemoryTransport`, so tests go through the actual protocol (`listTools`/`callTool`). Both transport halves must come from the same SDK package.
 
-Integration tests share container setups: `test/integration/pg-fixture.ts` (`startPostgres`) and `k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production).
+Tests are grouped by area in both `test/unit/` and `test/integration/`: `core/` (registry, config, limits, redaction), `postgres/`, `k8s/`; a new adapter gets its own folder in each. Integration tests share container setups: `test/integration/postgres/pg-fixture.ts` (`startPostgres`) and `test/integration/k8s/k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production).
 
 Output is redacted per string before serialization (`registry.ts`); redacting the JSON text corrupts it and misses escaped secrets.
 
@@ -84,7 +85,7 @@ Rules for adding a tool:
 - at least one secret planted in its fixture that must not appear in output,
 - updating the inline snapshot in `registry.test.ts` ("real v1 tool list"); it exists so surface changes are deliberate.
 
-**Fault lab** (`lab/`): each scenario (`lab/scenarios/*.ts`) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`.
+**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`.
 
 Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 

@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { K3sContainer, type StartedK3sContainer } from "@testcontainers/k3s";
-import { createK8sClient } from "../../src/adapters/k8s.js";
-import type { K8sClient } from "../../src/types.js";
+import { createK8sClient } from "../../../src/adapters/k8s.js";
+import type { K8sClient } from "../../../src/types.js";
 
 const IMAGE = "rancher/k3s:v1.37.2-k3s1";
-const OPS_RBAC = readFileSync(new URL("../../../../deploy/k8s/ops-ro.yaml", import.meta.url), "utf8");
+const OPS_RBAC = readFileSync(new URL("../../../../../deploy/k8s/ops-ro.yaml", import.meta.url), "utf8");
 
 export interface K3sFixture {
   container: StartedK3sContainer;

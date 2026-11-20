@@ -7,9 +7,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Lab, Scenario, ToolResult } from "./scenario.js";
 import { startLab } from "./scenario.js";
-import { crashLoop } from "./scenarios/crash-loop.js";
-import { lockContention } from "./scenarios/lock-contention.js";
-import { promptInjection } from "./scenarios/prompt-injection.js";
+import { crashLoop } from "./scenarios/k8s/crash-loop.js";
+import { lockContention } from "./scenarios/postgres/lock-contention.js";
+import { promptInjection } from "./scenarios/security/prompt-injection.js";
 
 const scenarios: readonly Scenario[] = [crashLoop, lockContention, promptInjection];
 

@@ -5,10 +5,10 @@
  */
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPgClient } from "../../src/adapters/pg.js";
-import { pgSlowQueries } from "../../src/tools/postgres.js";
-import { defineTool, Level } from "../../src/types.js";
-import { startHarness } from "../harness.js";
+import { createPgClient } from "../../../src/adapters/pg.js";
+import { pgSlowQueries } from "../../../src/tools/postgres.js";
+import { defineTool, Level } from "../../../src/types.js";
+import { startHarness } from "../../harness.js";
 import { OPS_PW, type PgFixture, startPostgres } from "./pg-fixture.js";
 
 let db: PgFixture;

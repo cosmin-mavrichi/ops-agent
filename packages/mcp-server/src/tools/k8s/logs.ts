@@ -42,12 +42,14 @@ export const k8sLogs = defineTool({
       limitBytes: MAX_BYTES,
       timestamps: true,
     });
-    // When a container is replaced mid-read, the API answers 200 with this text instead of the logs.
+    // The API answers 200 with this text instead of logs when the container is being replaced, or when
+    // kubelet has already removed it (it keeps few dead containers). The first passes, the second doesn't.
     if (text.startsWith("unable to retrieve container logs")) {
       throw new ToolError(
         "logs_unavailable",
-        `Kubernetes could not read these logs because the container was being replaced. Retry, or call again ` +
-          `with previous=${!previous}.`,
+        "Kubernetes could not return these logs: the container is being replaced, or it was already removed " +
+          `with its logs. Retry once; if it persists, try previous=${!previous}, and use k8s_pods (last ` +
+          "termination reason and exit code) and k8s_events for the cause instead.",
       );
     }
     const lines = text.split("\n").filter((line) => line.length > 0);

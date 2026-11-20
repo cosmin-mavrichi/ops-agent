@@ -113,16 +113,16 @@ describe("k8s_logs against k3s", () => {
   it("reads the dead container's last words, with the secret redacted", async () => {
     // The pod keeps restarting, so a read can race a restart (logs_unavailable); retry like the agent would.
     // Slow CI runners can take longer, so the wait is generous and a failure says what the tool answered.
-    await vi.waitFor(
-      async () => {
-        const res = await h.call("k8s_logs", { namespace: "app", pod: "crasher", previous: true });
-        expect(res.text).not.toContain(LOG_SECRET);
-        expect(res.json.lines?.join("\n") ?? "", `k8s_logs answered: ${res.text}`).toContain(
-          "fatal: cannot reach redis",
-        );
-      },
-      { timeout: 60_000, interval: 2_000 },
-    );
+    const readLastWords = async () => {
+      const res = await h.call("k8s_logs", { namespace: "app", pod: "crasher", previous: true });
+      expect(res.text).not.toContain(LOG_SECRET);
+      expect(res.json.lines?.join("\n") ?? "", `k8s_logs answered: ${res.text}`).toContain("fatal: cannot reach redis");
+    };
+    await vi.waitFor(readLastWords, { timeout: 60_000, interval: 2_000 }).catch(async (err) => {
+      throw new Error(
+        `${err}\n--- why the logs may be gone:\n${await crasherDiagnostics().catch((e) => `diagnostics failed: ${e}`)}`,
+      );
+    });
   }, 75_000);
 
   it("reports a missing pod as not found", async () => {
@@ -130,6 +130,23 @@ describe("k8s_logs against k3s", () => {
     expect(res.json.error).toBe("not_found");
   });
 });
+
+/** Whether kubelet still has the dead container, and whether the node is under disk pressure. */
+async function crasherDiagnostics(): Promise<string> {
+  const statuses = await k3s.kubectl(
+    "get",
+    "pod",
+    "crasher",
+    "-n",
+    "app",
+    "-o",
+    "jsonpath={.status.containerStatuses}",
+  );
+  const containers = await k3s.container.exec(["crictl", "ps", "-a", "--name", "^app$"]);
+  const pressure = await k3s.kubectl("get", "nodes", "-o", "jsonpath={.items[0].status.conditions}");
+  const disk = await k3s.container.exec(["df", "-h", "/"]);
+  return [statuses, containers.output, pressure, disk.output].join("\n");
+}
 
 describe("ops-ro ServiceAccount is actually read-only and scoped", () => {
   it.each([

@@ -60,10 +60,10 @@ export function createK8sClient(cfg: K8sConfig): K8sClient {
 
   return {
     namespaces: cfg.namespaces,
-    getJson: async <T>(path: string, query: QueryParams = {}, signal?: AbortSignal) =>
+    getJson: async <T>(path: string, signal?: AbortSignal, query: QueryParams = {}) =>
       JSON.parse(await get(path, query, "application/json", signal)) as T,
     // Log bodies are plain text, but the API only negotiates JSON-family types (it answers errors as JSON).
-    getText: (path, query = {}, signal) => get(path, query, "application/json, */*", signal),
+    getText: (path, signal, query = {}) => get(path, query, "application/json, */*", signal),
   };
 }
 

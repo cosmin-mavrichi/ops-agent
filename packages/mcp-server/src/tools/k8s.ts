@@ -162,7 +162,7 @@ export const k8sPods = defineTool({
   async run({ namespace, unhealthy_only }, { k8s, signal }) {
     const now = new Date();
     const lists = await Promise.all(
-      allowedNamespaces(k8s, namespace).map((ns) => k8s.getJson<{ items: Pod[] }>(`${nsPath(ns)}/pods`, {}, signal)),
+      allowedNamespaces(k8s, namespace).map((ns) => k8s.getJson<{ items: Pod[] }>(`${nsPath(ns)}/pods`, signal)),
     );
     const pods = lists
       .flatMap((list) => list.items)
@@ -252,8 +252,8 @@ export const k8sEvents = defineTool({
       allowedNamespaces(k8s, namespace).map((ns) =>
         k8s.getJson<{ items: K8sEvent[] }>(
           `${nsPath(ns)}/events`,
-          warnings_only ? { fieldSelector: "type=Warning" } : {},
           signal,
+          warnings_only ? { fieldSelector: "type=Warning" } : {},
         ),
       ),
     );

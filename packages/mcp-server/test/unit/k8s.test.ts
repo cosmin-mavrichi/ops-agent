@@ -170,8 +170,9 @@ function fakeK8s(responses: Record<string, unknown> = {}, namespaces = ["app", "
   };
   const client: K8sClient = {
     namespaces,
-    getJson: async <T>(path: string, query?: Record<string, unknown>) => answer(path, query) as T,
-    getText: async (path, query) => answer(path, query) as string,
+    getJson: async <T>(path: string, _signal?: AbortSignal, query?: Record<string, unknown>) =>
+      answer(path, query) as T,
+    getText: async (path, _signal, query) => answer(path, query) as string,
   };
   return { client, calls };
 }

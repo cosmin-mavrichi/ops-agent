@@ -17,8 +17,8 @@ export type QueryParams = Readonly<Record<string, string | number | boolean | un
 export interface K8sClient {
   /** Namespaces this deployment may inspect; RBAC grants the same set. */
   readonly namespaces: readonly string[];
-  getJson<T>(path: string, query?: QueryParams, signal?: AbortSignal): Promise<T>;
-  getText(path: string, query?: QueryParams, signal?: AbortSignal): Promise<string>;
+  getJson<T>(path: string, signal?: AbortSignal, query?: QueryParams): Promise<T>;
+  getText(path: string, signal?: AbortSignal, query?: QueryParams): Promise<string>;
 }
 
 export type Adapter = "pg" | "k8s";

@@ -31,18 +31,14 @@ export const k8sLogs = defineTool({
 
   async run({ namespace, pod, container, previous, tail_lines, since_s }, { k8s, signal }) {
     allowedNamespaces(k8s, namespace);
-    const text = await k8s.getText(
-      `${nsPath(namespace)}/pods/${encodeURIComponent(pod)}/log`,
-      {
-        container,
-        previous,
-        tailLines: tail_lines,
-        sinceSeconds: since_s,
-        limitBytes: MAX_BYTES,
-        timestamps: true,
-      },
-      signal,
-    );
+    const text = await k8s.getText(`${nsPath(namespace)}/pods/${encodeURIComponent(pod)}/log`, signal, {
+      container,
+      previous,
+      tailLines: tail_lines,
+      sinceSeconds: since_s,
+      limitBytes: MAX_BYTES,
+      timestamps: true,
+    });
     // When a container is replaced mid-read, the API answers 200 with this text instead of the logs.
     if (text.startsWith("unable to retrieve container logs")) {
       throw new ToolError(

@@ -17,6 +17,36 @@ Meilisearch, all in Docker behind a Docker socket proxy). One branch per step; m
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
 `OPS_MAX_LEVEL > 1`.
 
+## v2: maintaining the infrastructure
+
+Starts only after step 6: the evals must show the agent names the right root cause reliably before it may act on it.
+
+**Prerequisites, before the first write tool:**
+
+- **Approval flow.** The agent proposes an action with its reason ("restart `worker`: crash-looping, exit 137, OOM");
+  a human approves or rejects it, in the MCP client or out of band (e.g. Slack). `Level.Change` is approved per
+  action; `Level.Dangerous` needs explicit approval every time and is never batched.
+- **Separate server, separate credentials.** Write tools live in their own MCP server with their own Postgres role and
+  a Docker proxy that allows only the specific endpoints they need. The read-only server stays read-only.
+- **Actions only from approved plans.** A write call must trace back to a human-approved proposal, never directly to
+  text from tool output. Prompt-injection scenarios in the lab and evals must cover attempts to trigger actions.
+- **Per action:** dry run first, then a post-check that the fix worked (e.g. container healthy, blocked sessions
+  gone), rate limits, and an audit entry with who approved it.
+
+**Three kinds of maintenance:**
+
+| Kind                       | Examples                                                                                 | How                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Incident remediation       | restart a container, end a blocking session, pause/resume the worker, roll back a deploy | `Level.Change` tools, with approval      |
+| Routine upkeep             | verify a backup restores, renew certificates, clean up disk, vacuum, patch updates       | scheduled runs, reports, then tools      |
+| Configuration changes      | Compose files, Postgres settings, resource limits                                        | agent opens a pull request, no live edit |
+| Destructive / irreversible | restore a backup, schema change, major version upgrade                                   | `Level.Dangerous`, approval every time   |
+
+**First write tools,** paired with the diagnosis tools that justify them:
+
+1. `docker_restart` (Level 2), justified by the step 3 container status and logs.
+2. `pg_terminate_session` (Level 2), justified by `pg_blocking`; only for sessions it reported, never ops roles.
+
 ## Backlog
 
 Smaller items, not tied to a step. Move into a step when picked up.

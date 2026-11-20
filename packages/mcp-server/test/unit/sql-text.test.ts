@@ -6,6 +6,7 @@ describe("stripLiterals", () => {
     ["string literal", "SELECT * FROM users WHERE email = 'maria@example.ro'", "SELECT * FROM users WHERE email = ?"],
     ["doubled quote inside a string", "SELECT 'it''s secret'", "SELECT ?"],
     ["E-string with backslash escape", "SELECT E'tok\\'en-123'", "SELECT ?"],
+    ["lowercase e-string with backslash escape", "SELECT e'abc\\' secret-xyz' AS x", "SELECT ? AS x"],
     ["dollar-quoted body", "DO $$ BEGIN RAISE 'x'; END $$", "DO ?"],
     ["tagged dollar quote", "SELECT $fn$ secret $fn$ AS x", "SELECT ? AS x"],
     ["numbers", "SELECT * FROM t WHERE id = 12345 AND price > 9.99", "SELECT * FROM t WHERE id = ? AND price > ?"],

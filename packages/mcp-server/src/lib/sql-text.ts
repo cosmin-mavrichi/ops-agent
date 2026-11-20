@@ -3,6 +3,7 @@
  * pg_stat_activity shows queries verbatim, so literals can hold user data or secrets, and comments
  * are free text that could carry instructions aimed at the model. Unterminated strings and comments
  * (e.g. from truncated query text) are consumed to the end, so nothing after an open quote leaks.
+ * Assumes standard_conforming_strings = on (the default since 9.1): backslashes only escape in E'…'.
  */
 export function stripLiterals(sql: string): string {
   let out = "";

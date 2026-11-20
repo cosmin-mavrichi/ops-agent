@@ -1,0 +1,7 @@
+# ACL rules for the ops agent's Redis user (Redis 7+). Read-only diagnostics: no key access at all.
+# Apply as an admin, with the password from your secret store:
+#   redis-cli ACL SETUSER ops_ro reset on ">$OPS_REDIS_PASSWORD" $(grep -v '^#' ops-ro.acl)
+# `reset` starts from nothing: no keys, no channels, no commands. CLIENT LIST shows connection
+# metadata and the last command name, never arguments. CONFIG is deliberately absent: CONFIG GET
+# returns requirepass and masterauth.
+-@all +ping +info +slowlog|get +slowlog|len +client|list +client|setname +latency|latest

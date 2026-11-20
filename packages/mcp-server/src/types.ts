@@ -21,12 +21,18 @@ export interface K8sClient {
   getText(path: string, signal?: AbortSignal, query?: QueryParams): Promise<string>;
 }
 
-export type Adapter = "pg" | "k8s";
+/** Read-only Redis access. The adapter refuses any command outside its allowlist before sending it. */
+export interface RedisClient {
+  send(command: readonly string[], signal?: AbortSignal): Promise<unknown>;
+}
+
+export type Adapter = "pg" | "k8s" | "redis";
 
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
   pg: SqlClient;
   k8s: K8sClient;
+  redis: RedisClient;
   signal: AbortSignal;
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }

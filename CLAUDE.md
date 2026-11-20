@@ -62,9 +62,13 @@ Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `
 
 `src/tools/postgres.ts` (`pg_slow_queries`) is the reference tool; copy its shape for new tools.
 
+Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, which normalizes it), so it must go through `stripLiterals` (`src/lib/sql-text.ts`) before it is returned: literals can hold user data or secrets, and comments can carry text aimed at the model. `src/tools/pg-sessions.ts` (`pg_activity`, `pg_blocking`) does this.
+
 ## Tests
 
 `test/harness.ts` starts a real MCP server and client over `InMemoryTransport`, so tests go through the actual protocol (`listTools`/`callTool`). Both transport halves must come from the same SDK package.
+
+Integration tests share one container setup: `test/integration/pg-fixture.ts` (`startPostgres`).
 
 Rules for adding a tool:
 

@@ -94,11 +94,18 @@ function describeState(state: ContainerState | undefined, now: Date) {
   return { state: "unknown" };
 }
 
-function summarizeContainer(status: ContainerStatus, spec: ContainerSpec | undefined, init: boolean, now: Date) {
+type ContainerKind = "init" | "app";
+
+function specsByName(pod: Pod): ReadonlyMap<string, ContainerSpec> {
+  const specs = [...(pod.spec?.containers ?? []), ...(pod.spec?.initContainers ?? [])];
+  return new Map(specs.map((spec) => [spec.name, spec]));
+}
+
+function summarizeContainer(status: ContainerStatus, spec: ContainerSpec | undefined, kind: ContainerKind, now: Date) {
   const last = status.lastState?.terminated;
   return {
     name: status.name,
-    ...(init ? { init: true } : {}),
+    ...(kind === "init" ? { init: true } : {}),
     image: status.image,
     ready: status.ready ?? false,
     restarts: status.restartCount ?? 0,
@@ -111,27 +118,34 @@ function summarizeContainer(status: ContainerStatus, spec: ContainerSpec | undef
 }
 
 export function summarizePod(pod: Pod, now: Date) {
-  const statuses = pod.status?.containerStatuses ?? [];
-  const specs = new Map([...(pod.spec?.containers ?? []), ...(pod.spec?.initContainers ?? [])].map((c) => [c.name, c]));
+  const initStatuses = pod.status?.initContainerStatuses ?? [];
+  const appStatuses = pod.status?.containerStatuses ?? [];
+  const specs = specsByName(pod);
+  const summarize = (status: ContainerStatus, kind: ContainerKind) =>
+    summarizeContainer(status, specs.get(status.name), kind, now);
+
   const containers = [
-    ...(pod.status?.initContainerStatuses ?? []).map((s) => summarizeContainer(s, specs.get(s.name), true, now)),
-    ...statuses.map((s) => summarizeContainer(s, specs.get(s.name), false, now)),
+    ...initStatuses.map((status) => summarize(status, "init")),
+    ...appStatuses.map((status) => summarize(status, "app")),
   ];
+
   const phase = pod.status?.phase ?? "Unknown";
-  const ready = statuses.filter((s) => s.ready).length;
+  const readyCount = appStatuses.filter((status) => status.ready).length;
+  const allReady = appStatuses.length > 0 && readyCount === appStatuses.length;
   // Between crashes a looping container is briefly running and (without a readiness probe) ready.
-  const restartedRecently = containers.some(
-    (c) => c.last_termination?.finished_ago_s != null && c.last_termination.finished_ago_s < RECENT_RESTART_S,
-  );
-  const allReady = statuses.length > 0 && ready === statuses.length;
+  const restartedRecently = containers.some((container) => {
+    const finishedAgo = container.last_termination?.finished_ago_s;
+    return finishedAgo != null && finishedAgo < RECENT_RESTART_S;
+  });
+  const healthy = phase === "Succeeded" || (phase === "Running" && allReady && !restartedRecently);
 
   return {
     namespace: pod.metadata.namespace,
     name: pod.metadata.name,
     owner: ownerOf(pod),
     phase,
-    healthy: phase === "Succeeded" || (phase === "Running" && allReady && !restartedRecently),
-    ready: `${ready}/${statuses.length}`,
+    healthy,
+    ready: `${readyCount}/${appStatuses.length}`,
     restarts: containers.reduce((sum, c) => sum + c.restarts, 0),
     age_s: ageSeconds(pod.metadata.creationTimestamp, now),
     node: pod.spec?.nodeName ?? null,

@@ -3,13 +3,14 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { createK8sClient } from "./adapters/k8s.js";
 import { createPgClient } from "./adapters/pg.js";
-import { loadConfig } from "./config.js";
+import { type K8sSettings, loadConfig } from "./config.js";
 import { createRedactor } from "./lib/redact.js";
 import { type RegistryOptions, registerTools } from "./registry.js";
 import { allTools, toolsFor } from "./tools/index.js";
 import type { Adapter, K8sClient } from "./types.js";
 
 const cfg = loadConfig();
+
 const redact = createRedactor(cfg.knownSecrets);
 // stdout is the MCP channel — all logging goes to stderr.
 const log = (msg: string, meta?: Record<string, unknown>) =>
@@ -19,18 +20,7 @@ const pg = createPgClient({
   onError: (err) => log("pg_pool_error", { error: redact(err.message) }),
 });
 
-const k8sNotConfigured = async (): Promise<never> => {
-  throw new Error("kubernetes is not configured");
-};
-const k8s: K8sClient = cfg.k8s
-  ? createK8sClient({
-      server: cfg.k8s.server,
-      ca: readFileSync(cfg.k8s.caFile, "utf8"),
-      token: () => readFileSync(cfg.k8s?.tokenFile ?? "", "utf8").trim(),
-      namespaces: cfg.k8s.namespaces,
-    })
-  : { namespaces: [], getJson: k8sNotConfigured, getText: k8sNotConfigured };
-
+const k8s = cfg.k8s ? k8sClientFrom(cfg.k8s) : k8sNotConfigured();
 const configured: Adapter[] = cfg.k8s ? ["pg", "k8s"] : ["pg"];
 const tools = toolsFor(allTools, configured);
 
@@ -60,4 +50,21 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     await pg.end();
     process.exit(0);
   });
+}
+
+function k8sClientFrom(settings: K8sSettings): K8sClient {
+  return createK8sClient({
+    server: settings.server,
+    ca: readFileSync(settings.caFile, "utf8"),
+    token: () => readFileSync(settings.tokenFile, "utf8").trim(),
+    namespaces: settings.namespaces,
+  });
+}
+
+/** Never called: without k8s settings the k8s tools are not exposed (see toolsFor). */
+function k8sNotConfigured(): K8sClient {
+  const fail = async (): Promise<never> => {
+    throw new Error("kubernetes is not configured");
+  };
+  return { namespaces: [], getJson: fail, getText: fail };
 }

@@ -19,40 +19,45 @@ const Env = z.object({
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
-  const e = Env.parse(env);
-  if (e.OPS_MAX_LEVEL > Level.Read) {
+  const vars = Env.parse(env);
+  if (vars.OPS_MAX_LEVEL > Level.Read) {
     // v1 guard: refuse to boot with write tools until v2 adds approvals.
     throw new Error("OPS_MAX_LEVEL > 1 is not supported in v1");
   }
-  const pgPassword = safePassword(e.OPS_PG_URL);
+  const pgPassword = passwordIn(vars.OPS_PG_URL);
+  const knownSecrets = splitList(vars.OPS_KNOWN_SECRETS);
   return {
-    pgUrl: e.OPS_PG_URL,
-    maxLevel: e.OPS_MAX_LEVEL as Level,
-    knownSecrets: [...splitList(e.OPS_KNOWN_SECRETS), pgPassword].filter(Boolean) as string[],
-    k8s: k8sConfig(e),
+    pgUrl: vars.OPS_PG_URL,
+    maxLevel: vars.OPS_MAX_LEVEL as Level,
+    knownSecrets: pgPassword ? [...knownSecrets, pgPassword] : knownSecrets,
+    k8s: k8sConfig(vars),
   };
 }
 
-function k8sConfig(e: z.infer<typeof Env>) {
-  const namespaces = splitList(e.OPS_K8S_NAMESPACES);
+export type K8sSettings = NonNullable<ReturnType<typeof k8sConfig>>;
+
+function k8sConfig(vars: z.infer<typeof Env>) {
+  const namespaces = splitList(vars.OPS_K8S_NAMESPACES);
   if (namespaces.length === 0) return undefined;
-  const inCluster = e.KUBERNETES_SERVICE_HOST
-    ? `https://${e.KUBERNETES_SERVICE_HOST}:${e.KUBERNETES_SERVICE_PORT}`
+
+  const inCluster = vars.KUBERNETES_SERVICE_HOST
+    ? `https://${vars.KUBERNETES_SERVICE_HOST}:${vars.KUBERNETES_SERVICE_PORT}`
     : undefined;
-  const server = e.OPS_K8S_SERVER ?? inCluster;
-  if (!server)
+  const server = vars.OPS_K8S_SERVER ?? inCluster;
+  if (!server) {
     throw new Error("OPS_K8S_NAMESPACES is set but there is no API server: set OPS_K8S_SERVER or run in a pod");
-  return { server, namespaces, tokenFile: e.OPS_K8S_TOKEN_FILE, caFile: e.OPS_K8S_CA_FILE };
+  }
+  return { server, namespaces, tokenFile: vars.OPS_K8S_TOKEN_FILE, caFile: vars.OPS_K8S_CA_FILE };
 }
 
 function splitList(value: string): string[] {
   return value
     .split(",")
-    .map((s) => s.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function safePassword(url: string): string | undefined {
+function passwordIn(url: string): string | undefined {
   try {
     return decodeURIComponent(new URL(url).password) || undefined;
   } catch {

@@ -3,7 +3,7 @@
  * Tools should already avoid returning sensitive fields; this catches what slips through.
  */
 
-const PATTERNS: Array<[RegExp, string]> = [
+const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   // scheme://user:pass@host  (postgres, redis, amqp, https basic auth…)
   [/([a-z][a-z0-9+.-]*:\/\/)[^\s:/@]+:[^\s@/]+@/gi, "$1***:***@"],
   // Authorization headers / bearer tokens
@@ -29,14 +29,13 @@ export type Redactor = (text: string) => string;
  *        This is the most reliable rule: if we know the secret, we remove it verbatim.
  */
 export function createRedactor(knownSecrets: string[] = []): Redactor {
-  const exact = knownSecrets
-    .filter((s) => s && s.length >= 6) // avoid scrubbing short common strings
-    .sort((a, b) => b.length - a.length);
+  // Short values would scrub common words; longest first so a secret containing another is removed whole.
+  const exact = knownSecrets.filter((secret) => secret.length >= 6).toSorted((a, b) => b.length - a.length);
 
   return (input: string) => {
     let out = input;
-    for (const s of exact) out = out.split(s).join("***");
-    for (const [re, repl] of PATTERNS) out = out.replace(re, repl);
+    for (const secret of exact) out = out.replaceAll(secret, "***");
+    for (const [pattern, replacement] of PATTERNS) out = out.replace(pattern, replacement);
     return out;
   };
 }

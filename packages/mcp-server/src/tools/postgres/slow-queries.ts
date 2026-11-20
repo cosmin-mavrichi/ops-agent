@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool, Level, ToolError } from "../types.js";
+import { defineTool, Level, ToolError } from "../../types.js";
 
 /** Whitelisted sort columns. User input selects a key; it is never interpolated. */
 const ORDER_BY = {
@@ -9,6 +9,35 @@ const ORDER_BY = {
 } as const;
 
 const MAX_QUERY_TEXT = 1_500;
+
+/** Numeric columns come back as text so bigints survive; they are converted here. */
+interface StatementRow extends Record<string, unknown> {
+  queryid: string;
+  query: string;
+  calls: string;
+  total_ms: string;
+  mean_ms: string;
+  max_ms: string;
+  rows: string;
+  hit_ratio: string | null;
+  temp_mb: string;
+}
+
+function toStatement(row: StatementRow) {
+  const calls = Number(row.calls);
+  const rowsPerCall = calls > 0 ? Number(row.rows) / calls : 0;
+  return {
+    queryid: row.queryid,
+    query: row.query,
+    calls,
+    total_ms: Number(row.total_ms),
+    mean_ms: Number(row.mean_ms),
+    max_ms: Number(row.max_ms),
+    rows_per_call: Math.round(rowsPerCall * 10) / 10,
+    cache_hit_pct: row.hit_ratio === null ? null : Number(row.hit_ratio),
+    temp_spill_mb: Number(row.temp_mb),
+  };
+}
 
 export const pgSlowQueries = defineTool({
   name: "pg_slow_queries",
@@ -42,17 +71,7 @@ export const pgSlowQueries = defineTool({
       "SELECT stats_reset AS stats_since, dealloc::text FROM pg_stat_statements_info",
     );
 
-    const rows = await pg.query<{
-      queryid: string;
-      query: string;
-      calls: string;
-      total_ms: string;
-      mean_ms: string;
-      max_ms: string;
-      rows: string;
-      hit_ratio: string | null;
-      temp_mb: string;
-    }>(
+    const rows = await pg.query<StatementRow>(
       `SELECT s.queryid::text                                  AS queryid,
               left(s.query, ${MAX_QUERY_TEXT})                 AS query,
               s.calls::text                                    AS calls,
@@ -73,20 +92,11 @@ export const pgSlowQueries = defineTool({
       [limit],
     );
 
+    const [window] = info;
     return {
-      database_window: { stats_since: info[0]?.stats_since ?? null, evicted_entries: Number(info[0]?.dealloc ?? 0) },
+      database_window: { stats_since: window?.stats_since ?? null, evicted_entries: Number(window?.dealloc ?? 0) },
       order_by,
-      queries: rows.map((r) => ({
-        queryid: r.queryid,
-        query: r.query,
-        calls: Number(r.calls),
-        total_ms: Number(r.total_ms),
-        mean_ms: Number(r.mean_ms),
-        max_ms: Number(r.max_ms),
-        rows_per_call: Number(r.calls) > 0 ? +(Number(r.rows) / Number(r.calls)).toFixed(1) : 0,
-        cache_hit_pct: r.hit_ratio === null ? null : Number(r.hit_ratio),
-        temp_spill_mb: Number(r.temp_mb),
-      })),
+      queries: rows.map(toStatement),
     };
   },
 });

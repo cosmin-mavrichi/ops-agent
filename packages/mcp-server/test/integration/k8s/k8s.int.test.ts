@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { k8sEvents, k8sPods } from "../../../src/tools/k8s.js";
-import { k8sLogs } from "../../../src/tools/k8s-logs.js";
+import { k8sEvents } from "../../../src/tools/k8s/events.js";
+import { k8sLogs } from "../../../src/tools/k8s/logs.js";
+import { k8sPods } from "../../../src/tools/k8s/pods.js";
 import { ToolError } from "../../../src/types.js";
 import { startHarness } from "../../harness.js";
 import { type K3sFixture, startK3s } from "./k8s-fixture.js";
@@ -147,5 +148,24 @@ describe("ops-ro ServiceAccount is actually read-only and scoped", () => {
     expect(await can("create", "pods/exec")).toContain("no");
     expect(await can("delete", "pods")).toContain("no");
     expect(await can("get", "pods")).toBe("yes");
+  });
+});
+
+describe("k8s adapter limits", () => {
+  // A watch keeps the connection open and sends nothing while nothing changes.
+  const WATCH = ["/api/v1/namespaces/app/pods", undefined, { watch: true }] as const;
+
+  it("refuses responses over the size cap", async () => {
+    const tiny = k3s.connect({ maxResponseBytes: 100 });
+    await expect(tiny.getJson("/api/v1/namespaces/app/pods")).rejects.toThrow("over 100 bytes");
+  });
+
+  it("gives up on a connection that goes quiet", async () => {
+    const impatient = k3s.connect({ timeoutMs: 500 });
+    await expect(impatient.getText(...WATCH)).rejects.toThrow("timed out");
+  });
+
+  it("stops when the caller aborts, even mid-response", async () => {
+    await expect(k3s.ops.getText(WATCH[0], AbortSignal.timeout(500), WATCH[2])).rejects.toThrow();
   });
 });

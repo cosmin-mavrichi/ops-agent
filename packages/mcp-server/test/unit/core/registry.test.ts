@@ -1,9 +1,9 @@
 import { ProtocolError } from "@modelcontextprotocol/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { allTools } from "../../../src/tools/index.js";
 import { defineTool, Level, type ToolDef, ToolError } from "../../../src/types.js";
-import { startHarness } from "../../harness.js";
+import { useHarness } from "../../harness.js";
 
 const echo = defineTool({
   name: "echo",
@@ -30,21 +30,17 @@ const nuke = defineTool({
   run: async () => ({ restored: true }),
 });
 
-let h: Awaited<ReturnType<typeof startHarness>> | undefined;
-afterEach(async () => {
-  await h?.close();
-  h = undefined;
-});
+const harness = useHarness();
 
 describe("level gating", () => {
   it("v1 exposes only level-1 tools", async () => {
-    h = await startHarness({ tools: [echo, restart, nuke], maxLevel: Level.Read });
+    const h = await harness({ tools: [echo, restart, nuke], maxLevel: Level.Read });
     const { tools } = await h.client.listTools();
     expect(tools.map((t) => t.name)).toEqual(["echo"]);
   });
 
   it("a hidden tool cannot be called even by name", async () => {
-    h = await startHarness({ tools: [echo, restart] });
+    const h = await harness({ tools: [echo, restart] });
     // MCP SDK v2 rejects unknown tools at the protocol level instead of returning an isError result.
     const err = await h.call("restart_service").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ProtocolError);
@@ -53,14 +49,14 @@ describe("level gating", () => {
   });
 
   it("marks read tools as readOnly in annotations", async () => {
-    h = await startHarness({ tools: [echo] });
+    const h = await harness({ tools: [echo] });
     const { tools } = await h.client.listTools();
     expect(tools[0]?.annotations?.readOnlyHint).toBe(true);
   });
 
   /** Snapshot of the real v1 surface: adding a tool forces a deliberate snapshot update in review. */
   it("real v1 tool list", async () => {
-    h = await startHarness({ tools: allTools });
+    const h = await harness({ tools: allTools });
     const { tools } = await h.client.listTools();
     expect(tools.map((t) => t.name).sort()).toMatchInlineSnapshot(`
       [
@@ -78,26 +74,26 @@ describe("level gating", () => {
 
 describe("call pipeline", () => {
   it("rejects invalid and unknown arguments", async () => {
-    h = await startHarness({ tools: [echo] });
+    const h = await harness({ tools: [echo] });
     expect((await h.call("echo", { msg: "x".repeat(51) })).isError).toBe(true);
     expect((await h.call("echo", { msg: "hi", extra: "; rm -rf /" })).isError).toBe(true);
   });
 
   it("redacts secrets in results", async () => {
-    h = await startHarness({ tools: [echo], knownSecrets: ["topsecretvalue"] });
+    const h = await harness({ tools: [echo], knownSecrets: ["topsecretvalue"] });
     const res = await h.call("echo", { msg: "pw is topsecretvalue" });
     expect(res.text).not.toContain("topsecretvalue");
   });
 
   it("keeps the output valid JSON when a value is redacted", async () => {
-    h = await startHarness({ tools: [echo] });
+    const h = await harness({ tools: [echo] });
     const res = await h.call("echo", { msg: "API_KEY=sk_live_123456" });
     expect(res.json).toEqual({ msg: "API_KEY=***" });
   });
 
   it("finds known secrets that JSON would escape", async () => {
     const secret = 'pa"ss\\word99';
-    h = await startHarness({ tools: [echo], knownSecrets: [secret] });
+    const h = await harness({ tools: [echo], knownSecrets: [secret] });
     const res = await h.call("echo", { msg: `login with ${secret}` });
     expect(res.json).toEqual({ msg: "login with ***" });
   });
@@ -110,7 +106,7 @@ describe("call pipeline", () => {
       input: {},
       run: () => new Promise((r) => setTimeout(r, 500)),
     };
-    h = await startHarness({ tools: [slow] });
+    const h = await harness({ tools: [slow] });
     const res = await h.call("slow");
     expect(res.isError).toBe(true);
     expect(res.json.error).toBe("timeout");
@@ -127,7 +123,7 @@ describe("call pipeline", () => {
         return new Promise(() => {});
       },
     };
-    h = await startHarness({ tools: [hang] });
+    const h = await harness({ tools: [hang] });
     const client = new AbortController();
 
     const call = h.client.callTool({ name: "hang", arguments: {} }, { signal: client.signal });
@@ -156,7 +152,7 @@ describe("call pipeline", () => {
         throw new Error("connect ECONNREFUSED postgres://app:pw123456@10.0.0.5");
       },
     };
-    h = await startHarness({ tools: [expected, leaky] });
+    const h = await harness({ tools: [expected, leaky] });
 
     expect((await h.call("expected")).json).toEqual({ error: "unavailable", message: "extension missing" });
 
@@ -177,12 +173,12 @@ describe("call pipeline", () => {
       input: {},
       run: async () => ({ s: "x".repeat(1000) }),
     };
-    h = await startHarness({ tools: [big] });
+    const h = await harness({ tools: [big] });
     expect((await h.call("big")).text).toMatch(/truncated \d+ chars/);
   });
 
   it("audits every call", async () => {
-    h = await startHarness({ tools: [echo] });
+    const h = await harness({ tools: [echo] });
     await h.call("echo", { msg: "a" });
     expect(h.audit).toHaveLength(1);
     expect(h.audit[0]).toMatchObject({ tool: "echo", ok: true, args: { msg: "a" } });

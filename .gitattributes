@@ -1,0 +1,2 @@
+# Biome and CI expect LF; keep Windows checkouts (core.autocrlf=true) from converting to CRLF.
+* text=auto eol=lf

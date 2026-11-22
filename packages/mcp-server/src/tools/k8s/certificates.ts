@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DAY_S, describeSpan, toDays } from "../../lib/units.js";
 import { defineTool, Level } from "../../types.js";
 import {
   allowedNamespaces,
@@ -6,10 +7,7 @@ import {
   clip,
   conditionOf,
   customResourcePath,
-  DAY_S,
-  describeSpan,
   k8sLabel,
-  toDays,
   whenNotInstalled,
 } from "./shared.js";
 

@@ -11,6 +11,7 @@ import { pgSlowQueries } from "./postgres/slow-queries.js";
 import { promVolumeUsage } from "./prometheus/volume-usage.js";
 import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
+import { searchClusterHealth } from "./search/cluster-health.js";
 
 /** Single source of truth for the exposed surface. Add new tools here. */
 export const allTools: ToolDef<any>[] = [
@@ -26,6 +27,7 @@ export const allTools: ToolDef<any>[] = [
   redisHealth,
   redisSlowlog,
   promVolumeUsage,
+  searchClusterHealth,
 ];
 
 /** Tools whose adapters are all configured; the rest are not exposed at all. */

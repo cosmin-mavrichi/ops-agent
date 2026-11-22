@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { describeSpan, formatBytes, HOUR_S } from "../../lib/units.js";
 import { defineTool, Level, type PromClient, type PromSample } from "../../types.js";
-import { allowedNamespaces, describeSpan, HOUR_S, k8sLabel } from "../k8s/shared.js";
+import { allowedNamespaces, k8sLabel } from "../k8s/shared.js";
 
 const GROWTH_WINDOW = "1h";
 const FILL_WARNING_S = 48 * HOUR_S;
@@ -42,14 +43,6 @@ export interface Volume {
   readonly growth_bytes_per_hour: number | null;
   readonly full_in_s: number | null;
   readonly problems: readonly string[];
-}
-
-const UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"] as const;
-
-export function formatBytes(bytes: number): string {
-  const exponent = Math.min(Math.floor(Math.log2(Math.max(bytes, 1)) / 10), UNITS.length - 1);
-  const scaled = Math.round((bytes / 1024 ** exponent) * 10) / 10;
-  return `${scaled} ${UNITS[exponent]}`;
 }
 
 const percent = (part: number, whole: number) => Math.round((part / whole) * 1000) / 10;

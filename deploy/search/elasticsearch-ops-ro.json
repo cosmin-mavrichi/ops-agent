@@ -1,0 +1,5 @@
+{
+  "_comment": "Role for the ops agent on Elasticsearch. Monitoring only: no document reads, no settings changes. Apply: POST _security/role/ops_ro with this body (without _comment), then POST _security/user/ops_ro {\"password\": \"...\", \"roles\": [\"ops_ro\"]}.",
+  "cluster": ["monitor"],
+  "indices": [{ "names": ["*"], "privileges": ["monitor"] }]
+}

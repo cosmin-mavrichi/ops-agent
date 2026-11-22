@@ -15,6 +15,7 @@ import { lockContention } from "./scenarios/postgres/lock-contention.js";
 import { pausedWorker } from "./scenarios/postgres/paused-worker.js";
 import { cacheFull } from "./scenarios/redis/cache-full.js";
 import { slowKeys } from "./scenarios/redis/slow-keys.js";
+import { searchDiskFull } from "./scenarios/search/disk-full.js";
 import { appSecretInLogs } from "./scenarios/security/app-secret-in-logs.js";
 import { promptInjection } from "./scenarios/security/prompt-injection.js";
 
@@ -27,6 +28,7 @@ const scenarios: readonly Scenario[] = [
   pausedWorker,
   cacheFull,
   slowKeys,
+  searchDiskFull,
   promptInjection,
   appSecretInLogs,
 ];
@@ -53,7 +55,7 @@ describe.each(selected)("$name", (scenario) => {
   const everyOutput: string[] = [];
 
   beforeAll(async () => {
-    lab = await startLab(scenario.mountedSecrets);
+    lab = await startLab(scenario);
     await scenario.break(lab);
   }, 360_000);
 

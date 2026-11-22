@@ -1,3 +1,5 @@
+import { splitBasicAuth } from "../lib/basic-auth.js";
+import { ConnectionError, httpGet } from "../lib/http-get.js";
 import { type PromClient, type PromSample, ToolError } from "../types.js";
 
 export interface PromConfig {
@@ -22,49 +24,24 @@ const UNREACHABLE =
  * no write endpoints on that path, and tools send fixed PromQL with validated label values only.
  */
 export function createPromClient(cfg: PromConfig): PromClient {
-  const { endpoint, authorization } = splitCredentials(cfg.url);
+  const { base, authorization } = splitBasicAuth(cfg.url);
   const maxBytes = cfg.maxResponseBytes ?? 4 * 1024 * 1024;
   const timeoutMs = cfg.timeoutMs ?? 5_000;
 
   return {
     async query(promql, signal) {
-      const url = new URL("api/v1/query", endpoint);
+      const url = new URL("api/v1/query", base);
       url.searchParams.set("query", promql);
-      const signals = [AbortSignal.timeout(timeoutMs), ...(signal ? [signal] : [])];
       const headers = { accept: "application/json", ...(authorization ? { authorization } : {}) };
+      const options = { headers, timeoutMs, maxBytes, signal, label: "prometheus /api/v1/query" };
 
-      const response = await fetch(url, { headers, signal: AbortSignal.any(signals) }).catch((err: unknown) => {
-        if (signal?.aborted) throw err;
-        throw new ToolError("unavailable", UNREACHABLE);
+      const { status, body } = await httpGet(url, options).catch((err: unknown) => {
+        if (err instanceof ConnectionError && !signal?.aborted) throw new ToolError("unavailable", UNREACHABLE);
+        throw err;
       });
-      const body = await readCapped(response, maxBytes);
-      return parseVector(response.status, body);
+      return parseVector(status, body);
     },
   };
-}
-
-/** fetch refuses URLs with credentials, so basic auth moves into a header. */
-function splitCredentials(raw: string): { endpoint: URL; authorization?: string } {
-  const endpoint = new URL(raw.endsWith("/") ? raw : `${raw}/`);
-  if (!endpoint.username && !endpoint.password) return { endpoint };
-
-  const user = decodeURIComponent(endpoint.username);
-  const password = decodeURIComponent(endpoint.password);
-  endpoint.username = "";
-  endpoint.password = "";
-  const authorization = `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
-  return { endpoint, authorization };
-}
-
-async function readCapped(response: Response, maxBytes: number): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for await (const chunk of response.body ?? []) {
-    size += chunk.length;
-    if (size > maxBytes) throw new Error(`prometheus response over ${maxBytes} bytes`);
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks).toString("utf8");
 }
 
 /** Errors stay internal: a failing fixed query is our bug, and the server's message can name hosts. */

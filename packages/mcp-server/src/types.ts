@@ -43,7 +43,12 @@ export interface PromClient {
   query(promql: string, signal?: AbortSignal): Promise<PromSample[]>;
 }
 
-export type Adapter = "pg" | "k8s" | "redis" | "prom";
+/** Read-only OpenSearch/Elasticsearch access. The adapter refuses any path outside its allowlist. */
+export interface SearchClient {
+  getJson<T>(path: string, query?: QueryParams, signal?: AbortSignal): Promise<T>;
+}
+
+export type Adapter = "pg" | "k8s" | "redis" | "prom" | "search";
 
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
@@ -51,6 +56,7 @@ export interface ToolContext {
   k8s: K8sClient;
   redis: RedisClient;
   prom: PromClient;
+  search: SearchClient;
   signal: AbortSignal;
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }

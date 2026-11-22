@@ -5,12 +5,13 @@ import { createK8sClient } from "./adapters/k8s.js";
 import { createPgClient } from "./adapters/pg.js";
 import { createPromClient } from "./adapters/prometheus.js";
 import { createRedisClient } from "./adapters/redis.js";
-import { type K8sSettings, loadConfig } from "./config.js";
+import { createSearchClient } from "./adapters/search.js";
+import { type K8sSettings, loadConfig, type SearchSettings } from "./config.js";
 import { readSecretsDir } from "./lib/known-secrets.js";
 import { createRedactor } from "./lib/redact.js";
 import { type RegistryOptions, registerTools } from "./registry.js";
 import { allTools, toolsFor } from "./tools/index.js";
-import type { Adapter, K8sClient, PromClient, RedisClient } from "./types.js";
+import type { Adapter, K8sClient, PromClient, RedisClient, SearchClient } from "./types.js";
 
 const cfg = loadConfig();
 
@@ -26,12 +27,13 @@ const pg = createPgClient({
 const k8s = cfg.k8s ? k8sClientFrom(cfg.k8s) : k8sNotConfigured();
 const redis = cfg.redisUrl ? redisClientFrom(cfg.redisUrl) : redisNotConfigured();
 const prom = cfg.promUrl ? createPromClient({ url: cfg.promUrl }) : promNotConfigured();
+const search = cfg.search ? searchClientFrom(cfg.search) : searchNotConfigured();
 const tools = toolsFor(allTools, configuredAdapters());
 
 const registryOpts: RegistryOptions = {
   maxLevel: cfg.maxLevel,
   redact,
-  context: (signal) => ({ pg, k8s, redis, prom, signal, log }),
+  context: (signal) => ({ pg, k8s, redis, prom, search, signal, log }),
   audit: (e) => log("tool_call", { ...e }),
 };
 
@@ -80,6 +82,7 @@ function configuredAdapters(): Adapter[] {
   if (cfg.k8s) adapters.push("k8s");
   if (cfg.redisUrl) adapters.push("redis");
   if (cfg.promUrl) adapters.push("prom");
+  if (cfg.search) adapters.push("search");
   return adapters;
 }
 
@@ -100,4 +103,13 @@ function redisNotConfigured(): RedisClient {
 
 function promNotConfigured(): PromClient {
   return { query: notConfigured("prometheus") };
+}
+
+function searchClientFrom(settings: SearchSettings): SearchClient {
+  const ca = settings.caFile ? readFileSync(settings.caFile, "utf8") : undefined;
+  return createSearchClient({ url: settings.url, ca });
+}
+
+function searchNotConfigured(): SearchClient {
+  return { getJson: notConfigured("search") };
 }

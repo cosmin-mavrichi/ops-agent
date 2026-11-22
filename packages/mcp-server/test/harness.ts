@@ -9,6 +9,7 @@ import {
   Level,
   type PromClient,
   type RedisClient,
+  type SearchClient,
   type SqlClient,
   type ToolDef,
 } from "../src/types.js";
@@ -23,6 +24,7 @@ export interface HarnessOptions {
   k8s?: K8sClient;
   redis?: RedisClient;
   prom?: PromClient;
+  search?: SearchClient;
   maxLevel?: Level;
   knownSecrets?: string[];
 }
@@ -40,6 +42,7 @@ export async function startHarness(opts: HarnessOptions) {
       k8s: opts.k8s ?? missingK8s,
       redis: opts.redis ?? missingRedis,
       prom: opts.prom ?? missingProm,
+      search: opts.search ?? missingSearch,
       signal,
       log: () => {},
     }),
@@ -96,3 +99,4 @@ const missingPg: SqlClient = { query: notInThisTest("pg") };
 const missingK8s: K8sClient = { namespaces: [], getJson: notInThisTest("k8s"), getText: notInThisTest("k8s") };
 const missingRedis: RedisClient = { send: notInThisTest("redis") };
 const missingProm: PromClient = { query: notInThisTest("prometheus") };
+const missingSearch: SearchClient = { getJson: notInThisTest("search") };

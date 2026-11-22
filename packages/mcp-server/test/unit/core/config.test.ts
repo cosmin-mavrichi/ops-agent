@@ -119,3 +119,28 @@ describe("loadConfig: prometheus", () => {
     expect(() => loadConfig({ ...base, OPS_PROM_URL: url })).toThrow();
   });
 });
+
+describe("loadConfig: search", () => {
+  const base = { OPS_PG_URL: PG_URL };
+
+  it("leaves search tools off when no URL is set", () => {
+    expect(loadConfig(base).search).toBeUndefined();
+  });
+
+  it("scrubs the search password and keeps the CA file path", () => {
+    const cfg = loadConfig({
+      ...base,
+      OPS_SEARCH_URL: "https://ops_ro:search-pass-6612@search.internal:9200",
+      OPS_SEARCH_CA_FILE: "/etc/ops/search-ca.pem",
+    });
+    expect(cfg.search).toEqual({
+      url: "https://ops_ro:search-pass-6612@search.internal:9200",
+      caFile: "/etc/ops/search-ca.pem",
+    });
+    expect(cfg.knownSecrets).toContain("search-pass-6612");
+  });
+
+  it.each(["search:9200", "redis://search:9200"])("rejects %j as a search URL", (url) => {
+    expect(() => loadConfig({ ...base, OPS_SEARCH_URL: url })).toThrow();
+  });
+});

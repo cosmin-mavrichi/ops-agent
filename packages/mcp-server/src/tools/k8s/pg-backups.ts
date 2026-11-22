@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { describeSpan, HOUR_S } from "../../lib/units.js";
 import { defineTool, Level } from "../../types.js";
 import {
   allowedNamespaces,
@@ -6,8 +7,6 @@ import {
   clip,
   conditionOf,
   customResourcePath,
-  describeSpan,
-  HOUR_S,
   k8sLabel,
   secondsSince,
   whenNotInstalled,

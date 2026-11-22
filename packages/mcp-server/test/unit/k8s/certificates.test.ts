@@ -64,7 +64,7 @@ describe("summarizeCertificates", () => {
       issuer: { ref: "Issuer/internal-ca", ready: false },
     });
     expect(first?.problems).toEqual([
-      "expires in 1 days",
+      "expires in 1 day",
       "not Ready (DoesNotMatch): Issuing certificate as Secret is not up to date",
       "renewal was due 3 days ago and has not happened",
       'its issuer Issuer/internal-ca is not Ready: Error getting keypair for CA issuer: secret "ca-key" not found',
@@ -89,7 +89,7 @@ describe("summarizeCertificates", () => {
   it("counts a certificate with an hour left in hours, not as expired", () => {
     const shortLived = { ...healthy, status: { ...healthy.status, notAfter: fromNow(3_600) } };
     const [summary] = summarizeCertificates([shortLived], [], NOW);
-    expect(summary?.problems).toEqual(["expires in 1 hours"]);
+    expect(summary?.problems).toEqual(["expires in 1 hour"]);
   });
 
   it("treats a certificate that was never issued as unknown expiry, not expired", () => {

@@ -101,3 +101,21 @@ describe("loadConfig: known secrets directory", () => {
     expect(() => loadConfig({ OPS_PG_URL: PG_URL, OPS_KNOWN_SECRETS_DIR: "" })).toThrow();
   });
 });
+
+describe("loadConfig: prometheus", () => {
+  const base = { OPS_PG_URL: PG_URL };
+
+  it("leaves metrics tools off when no URL is set", () => {
+    expect(loadConfig(base).promUrl).toBeUndefined();
+  });
+
+  it("scrubs a basic auth password in the URL", () => {
+    const cfg = loadConfig({ ...base, OPS_PROM_URL: "https://ops:prom-pass-4402@metrics.example/prometheus" });
+    expect(cfg.promUrl).toBe("https://ops:prom-pass-4402@metrics.example/prometheus");
+    expect(cfg.knownSecrets).toContain("prom-pass-4402");
+  });
+
+  it.each(["prometheus:9090", "redis://cache:6379", "not a url"])("rejects %j as a Prometheus URL", (url) => {
+    expect(() => loadConfig({ ...base, OPS_PROM_URL: url })).toThrow();
+  });
+});

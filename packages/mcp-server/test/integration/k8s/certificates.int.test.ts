@@ -61,6 +61,7 @@ describe("k8s_certificates against k3s", () => {
     expect(res.json.message).toContain("cert-manager is not installed");
   });
 
+  // Installs the cert-manager CRDs (download + apply) inside the test, so the default 5s is too short.
   it("reads Certificates and Issuers as the ops ServiceAccount and explains a failing renewal", async () => {
     await installCertManagerCrds(k3s);
     await k3s.apply(CERTIFICATES);
@@ -84,7 +85,7 @@ describe("k8s_certificates against k3s", () => {
       issuer: { ref: "Issuer/internal-ca", ready: false },
     });
     expect(res.json.certificates[0].problems.join("\n")).toContain("renewal was due 3 days ago");
-  });
+  }, 120_000);
 
   it("never returns the issued key or the token", async () => {
     const res = await h.call("k8s_certificates");

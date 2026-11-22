@@ -67,6 +67,7 @@ describe("k8s_pg_backups against k3s", () => {
     expect(res.json.message).toContain("CloudNativePG is not installed");
   });
 
+  // Installs the CloudNativePG CRDs (download + server-side apply) inside the test, so the default 5s is too short.
   it("reads clusters, backups and schedules as the ops ServiceAccount", async () => {
     await installCloudNativePgCrds(k3s);
     await k3s.apply(BACKUP_SETUP);
@@ -106,7 +107,7 @@ describe("k8s_pg_backups against k3s", () => {
       schedules: [{ name: "app-db-nightly", suspended: false }],
     });
     expect(res.json.clusters[0].problems, res.text).toContain("the last successful backup finished 2 days ago");
-  });
+  }, 120_000);
 
   it("never returns backup output, the object store key or the token", async () => {
     const res = await h.call("k8s_pg_backups");

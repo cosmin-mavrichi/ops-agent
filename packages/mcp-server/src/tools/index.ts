@@ -12,6 +12,7 @@ import { promVolumeUsage } from "./prometheus/volume-usage.js";
 import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
 import { searchClusterHealth } from "./search/cluster-health.js";
+import { searchNodePressure } from "./search/node-pressure.js";
 
 /** Single source of truth for the exposed surface. Add new tools here. */
 export const allTools: ToolDef<any>[] = [
@@ -28,6 +29,7 @@ export const allTools: ToolDef<any>[] = [
   redisSlowlog,
   promVolumeUsage,
   searchClusterHealth,
+  searchNodePressure,
 ];
 
 /** Tools whose adapters are all configured; the rest are not exposed at all. */

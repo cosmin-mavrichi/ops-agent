@@ -75,7 +75,7 @@ packages/mcp-server/                the only code that touches infra
   src/tools/k8s/                    shared (namespace allowlist), pods, events, logs
   src/tools/redis/                  shared (INFO parsing, key masking), health, slowlog
   src/tools/prometheus/             volume-usage (PersistentVolumeClaim disk usage)
-  src/tools/search/                 cluster-health, watermarks
+  src/tools/search/                 cluster-health, watermarks, node-pressure
   src/lib/sql-text.ts               strips literals/comments from live query text
   test/harness.ts                   real MCP server + client over in-memory transport (useHarness in tests)
   test/{unit,integration}/<area>/   tests grouped by area: core, postgres, k8s, redis, prometheus, search

@@ -52,14 +52,22 @@ const ENVIRONMENT: Record<Engine, Record<string, string>> = {
   },
 };
 
+export interface SearchOptions {
+  /** Size of the data filesystem. */
+  readonly dataMb?: number;
+  /** Extra node settings, e.g. a smaller thread pool. */
+  readonly settings?: Readonly<Record<string, string>>;
+}
+
 /**
  * A single-node engine with security on and its data on a tmpfs of `dataMb`: disk watermarks are measured
  * on the data filesystem, and the host's disk would otherwise decide whether the cluster turns read-only.
  */
-export async function startSearch(engine: Engine, dataMb = 1024): Promise<SearchFixture> {
+export async function startSearch(engine: Engine, options: SearchOptions = {}): Promise<SearchFixture> {
+  const { dataMb = 1024, settings = {} } = options;
   const { image, admin: adminUser, dataPath } = ENGINES[engine];
   const container = await new GenericContainer(image)
-    .withEnvironment(ENVIRONMENT[engine])
+    .withEnvironment({ ...ENVIRONMENT[engine], ...settings })
     .withTmpFs({ [dataPath]: `rw,size=${dataMb}m,uid=1000,gid=1000` })
     .withExposedPorts(9200)
     .withWaitStrategy(

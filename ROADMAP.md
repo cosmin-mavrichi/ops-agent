@@ -38,7 +38,9 @@ diagnostic APIs, as with Valkey/Redis), plus Meilisearch (already in the stack).
 - **Cluster health:** `search_cluster_health` (status, shard counts, allocation explanation for an unassigned
   shard, disk per node against the watermarks, read-only index blocks); lab scenario search-disk-full (flood
   stage makes the index read-only, the indexer's writes fail). Done.
-- **Node pressure:** JVM heap, circuit breakers, thread pool rejections; scenario search rejections under load.
+- **Node pressure:** `search_node_pressure` (JVM heap, old-generation GC time, thread pool queues and rejections,
+  tripped circuit breakers), sampled twice a few seconds apart because the counters are cumulative since node
+  start; lab scenario search-rejections (an undersized node rejects the storefront's searches). Done.
 - **Meilisearch:** task queue and failed tasks.
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with

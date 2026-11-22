@@ -14,6 +14,7 @@ import {
   type Engine,
   OPS_SEARCH_PW,
   type SearchFixture,
+  type SearchOptions,
   startSearch,
 } from "../test/integration/search/search-fixture.js";
 import { startMonitoring } from "./monitoring.js";
@@ -43,7 +44,7 @@ export interface Scenario {
    */
   readonly mountedSecrets?: Readonly<Record<string, string>>;
   /** A search engine, started only for the scenarios that need one (it takes a GiB of memory). */
-  readonly search?: { readonly engine: Engine; readonly dataMb: number };
+  readonly search?: { readonly engine: Engine } & SearchOptions;
   /** Breaks one thing and waits until the failure is observable. */
   break(lab: Lab): Promise<void>;
   readonly evidence: readonly Evidence[];
@@ -66,7 +67,7 @@ export interface Lab {
 type LabNeeds = Pick<Scenario, "mountedSecrets" | "search">;
 
 export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
-  const searchStarting = needs.search ? startSearch(needs.search.engine, needs.search.dataMb) : undefined;
+  const searchStarting = needs.search ? startSearch(needs.search.engine, needs.search) : undefined;
   const [k3s, db, cache, search] = await Promise.all([
     startK3s(),
     startPostgres(),

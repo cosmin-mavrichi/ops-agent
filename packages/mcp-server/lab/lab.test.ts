@@ -16,6 +16,7 @@ import { pausedWorker } from "./scenarios/postgres/paused-worker.js";
 import { cacheFull } from "./scenarios/redis/cache-full.js";
 import { slowKeys } from "./scenarios/redis/slow-keys.js";
 import { searchDiskFull } from "./scenarios/search/disk-full.js";
+import { searchRejections } from "./scenarios/search/rejections.js";
 import { appSecretInLogs } from "./scenarios/security/app-secret-in-logs.js";
 import { promptInjection } from "./scenarios/security/prompt-injection.js";
 
@@ -29,6 +30,7 @@ const scenarios: readonly Scenario[] = [
   cacheFull,
   slowKeys,
   searchDiskFull,
+  searchRejections,
   promptInjection,
   appSecretInLogs,
 ];

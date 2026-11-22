@@ -1,5 +1,5 @@
 import { createClient } from "@redis/client";
-import type { RedisClient } from "../types.js";
+import { AGENT_CLIENT_NAME, type RedisClient } from "../types.js";
 
 export interface RedisConfig {
   /** Must authenticate as the ops_ro ACL user (see deploy/redis/ops-ro.acl). */
@@ -40,7 +40,7 @@ export function createRedisClient(cfg: RedisConfig): RedisClient {
 
       const client = createClient({
         url: cfg.url,
-        name: "ops-mcp",
+        name: AGENT_CLIENT_NAME,
         RESP: 2,
         // CLIENT SETINFO is not in the ACL; the name above already identifies the agent.
         disableClientInfo: true,

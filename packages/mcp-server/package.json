@@ -15,7 +15,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
     "@redis/client": "6.3.1",

@@ -1,5 +1,5 @@
 import pg from "pg";
-import type { SqlClient } from "../types.js";
+import { AGENT_CLIENT_NAME, type SqlClient } from "../types.js";
 
 export interface PgConfig {
   connectionString: string; // must use the ops_ro role (see deploy/sql/ops_ro.sql)
@@ -21,7 +21,7 @@ export function createPgClient(cfg: PgConfig): SqlClient & { end(): Promise<void
     max: 2,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 3_000,
-    application_name: "ops-mcp",
+    application_name: AGENT_CLIENT_NAME,
     options: `-c default_transaction_read_only=on -c statement_timeout=${timeout} -c lock_timeout=1000`,
   });
   pool.on("error", cfg.onError);

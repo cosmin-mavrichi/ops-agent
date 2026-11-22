@@ -7,6 +7,12 @@ export enum Level {
   Dangerous = 3, // explicit approval every time (restore, schema change, major upgrade)
 }
 
+/**
+ * The name the agent's own connections carry (Postgres application_name, Redis client name), so tools
+ * can leave the agent out of what they report.
+ */
+export const AGENT_CLIENT_NAME = "ops-mcp";
+
 export interface SqlClient {
   query<T extends Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
 }

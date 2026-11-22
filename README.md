@@ -88,3 +88,7 @@ deploy/redis/ops-ro.acl  read-only, keyless ACL user for Redis/Valkey
 
 Rule for adding a tool: unit test with a fake adapter + integration test against the real
 service + at least one secret planted in its fixture that must not come out.
+
+## License
+
+Proprietary. Copyright (c) 2026 Cosmin Mavrichi, all rights reserved. The source is public for reference only; no use, copying, modification or distribution is permitted without written permission. See [LICENSE](LICENSE).

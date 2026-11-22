@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { maskKey, parseInfo, parsePairs } from "../../../src/tools/redis/shared.js";
+import { maskKey, oneDecimal, parseInfo, parsePairs, secondsSince } from "../../../src/tools/redis/shared.js";
+import { NOW, unixAgo } from "./fake-redis.js";
+
+describe("oneDecimal", () => {
+  it("rounds to one decimal place", () => {
+    expect(oneDecimal(48.25)).toBe(48.3);
+    expect(oneDecimal(1.94)).toBe(1.9);
+  });
+});
+
+describe("secondsSince", () => {
+  it("measures from a unix time and never goes negative when clocks drift", () => {
+    expect(secondsSince(unixAgo(30), NOW)).toBe(30);
+    expect(secondsSince(unixAgo(-5), NOW)).toBe(0);
+  });
+});
 
 describe("parseInfo", () => {
   it("reads field:value lines and skips section headers and blanks", () => {

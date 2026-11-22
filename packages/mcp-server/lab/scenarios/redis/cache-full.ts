@@ -18,11 +18,13 @@ export const cacheFull: Scenario = {
     await checkout.set(`session:${SESSION_TOKEN}`, JSON.stringify({ card_token: CARD_TOKEN }));
 
     let refused = 0;
+    const countRefusal = (err: unknown) => {
+      if (!String(err).includes("OOM")) throw err;
+      refused++;
+    };
     for (let i = 0; i < 200 && refused < 5; i++) {
-      await checkout.set(`cart:${i}`, BLOB).catch((err: unknown) => {
-        if (!String(err).includes("OOM")) throw err;
-        refused++;
-      });
+      // Sequential on purpose: each write fills memory, and the loop stops after the 5th OOM refusal.
+      await checkout.set(`cart:${i}`, BLOB).catch(countRefusal); // NOSONAR
     }
     expect(refused).toBe(5);
   },

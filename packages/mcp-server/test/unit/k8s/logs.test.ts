@@ -32,6 +32,25 @@ describe("k8s_logs (unit)", () => {
     expect(res.json.note).toBe(UNTRUSTED_NOTE);
   });
 
+  it("keeps the newest lines and says how many older ones were left out when they don't all fit", async () => {
+    const long = Array.from({ length: 200 }, (_, i) => `2026-11-20T12:00:00Z line ${i} ${"y".repeat(400)}`);
+    const log = [...long, "2026-11-20T12:00:01Z FATAL the newest line", ""].join("\n");
+    const h = await harness({ tools: [k8sLogs], k8s: fakeK8s({ "/log": log }, ["app"]).client });
+    const res = await h.call("k8s_logs", { namespace: "app", pod: "worker-1", tail_lines: 500 });
+
+    expect(res.text).not.toContain("[truncated");
+    expect(res.json.lines.at(-1)).toContain("FATAL the newest line");
+    expect(res.json.dropped_oldest).toBeGreaterThan(0);
+    expect(res.json.dropped_oldest + res.json.line_count).toBe(201);
+    expect(res.json.dropped_note).toContain("since_s");
+  });
+
+  it("reports nothing dropped when every line fits", async () => {
+    const h = await harness({ tools: [k8sLogs], k8s: fakeK8s({ "/log": LOG }, ["app"]).client });
+    const res = await h.call("k8s_logs", { namespace: "app", pod: "worker-1" });
+    expect(res.json).not.toHaveProperty("dropped_oldest");
+  });
+
   const LOST = "unable to retrieve container logs for containerd://5d9a9cc140f7";
 
   it("falls back to the current container when kubelet already deleted the previous one", async () => {

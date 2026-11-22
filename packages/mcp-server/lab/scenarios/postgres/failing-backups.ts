@@ -68,8 +68,8 @@ export const failingBackups: Scenario = {
     {
       tool: "k8s_logs",
       // CloudNativePG names instance pods <cluster>-<n>; the agent would read it from k8s_pods. Its JSON log
-      // lines are long, so a short tail: 200 lines overflow the output limit and arrive cut off.
-      args: { namespace: "app", pod: "app-db-1", container: "postgres", tail_lines: 25 },
+      // lines are long, so k8s_logs keeps only the newest that fit.
+      args: { namespace: "app", pod: "app-db-1", container: "postgres", tail_lines: 200 },
       shows: "the WAL archiver cannot reach the object store endpoint",
       check: ({ json }) => {
         expect(json.lines.join("\n")).toMatch(/Could not connect to the endpoint URL.*minio\.backup\.svc/);

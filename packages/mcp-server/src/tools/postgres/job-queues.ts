@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { describeSpan } from "../../lib/units.js";
 import { defineTool, Level, type SqlClient, ToolError } from "../../types.js";
-import { describeSpan } from "../k8s/shared.js";
 
 // pg-boss refreshes these counts every 60s by default (monitorIntervalSeconds) in any running instance.
 const STALE_AFTER_S = 300;

@@ -14,7 +14,7 @@ merge to `main` when green.
 | 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                        | done    |
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys  | done    |
 | 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | done    |
-| 5c  | Search engines, read-only: OpenSearch, Elasticsearch and Meilisearch (see below)                                                                                                                      | planned |
+| 5c  | Search engines, read-only: OpenSearch, Elasticsearch and Meilisearch (see below)                                                                                                                      | doing   |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                               | planned |
 
 **Step 5b, one PR per area:**
@@ -34,11 +34,12 @@ merge to `main` when green.
 **Step 5c, search engines.** OpenSearch first (Apache 2.0, Linux Foundation), Elasticsearch tested too (same
 diagnostic APIs, as with Valkey/Redis), plus Meilisearch (already in the stack).
 
-- **Tools:** cluster health and unassigned shards with the allocation explanation, disk watermarks and read-only
-  index blocks, JVM heap and circuit breakers, thread pool rejections, shard counts; Meilisearch task queue and
-  failed tasks.
-- **Access:** a role with only cluster/index `monitor` privileges, no document reads.
-- **Scenarios:** cluster red after the disk fills, search rejections under load.
+- **Access:** a role with only cluster/index `monitor` privileges, no document reads (`deploy/search/`).
+- **Cluster health:** `search_cluster_health` (status, shard counts, allocation explanation for an unassigned
+  shard, disk per node against the watermarks, read-only index blocks); lab scenario search-disk-full (flood
+  stage makes the index read-only, the indexer's writes fail). Done.
+- **Node pressure:** JVM heap, circuit breakers, thread pool rejections; scenario search rejections under load.
+- **Meilisearch:** task queue and failed tasks.
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
 `OPS_MAX_LEVEL > 1`.
@@ -122,6 +123,10 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Job queues: Postgres first, Redis later** (2026-11-22). Backlog for Redis-based queues (BullMQ) means reading
   queue keys, which the keyless `ops_ro` ACL user deliberately cannot; add it only when an app needs it, with a
   narrow key pattern.
+- **Search disk scenario: read-only, not red** (2026-11-22). On a single data node OpenSearch skips the low and
+  high watermarks by default (`enable_for_single_data_node: false`), so a full disk does not stop new shards
+  from being placed; flood stage still makes indices read-only. That is the incident a single-node setup gets,
+  so the lab reproduces it. Integration tests run OpenSearch and Elasticsearch with security on and TLS off.
 - **pg-boss first, from its counters** (2026-11-22). The most used Postgres job queue in Node (about 20M npm
   downloads a month against Graphile Worker's 5M). Its `queue` table already holds the counts pg-boss refreshes
   every minute, so the agent needs no access to `job`, where payloads and errors live. Counts older than 5

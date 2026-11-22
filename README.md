@@ -21,6 +21,8 @@ All settings are environment variables. stdout is the MCP channel; logs go to st
 | `OPS_PG_URL`                            | yes      | Postgres URL as the `ops_ro` role (`deploy/sql/ops_ro.sql`)                                                                            |
 | `OPS_REDIS_URL`                         | no       | Redis or Valkey URL as the `ops_ro` ACL user (`deploy/redis/ops-ro.acl`); unset = no Redis tools                                       |
 | `OPS_PROM_URL`                          | no       | Prometheus-compatible query API (Prometheus, VictoriaMetrics, Mimir, Thanos); needs `OPS_K8S_NAMESPACES` too; unset = no metrics tools |
+| `OPS_SEARCH_URL`                        | no       | OpenSearch or Elasticsearch URL as the `ops_ro` user (`deploy/search/`); unset = no search tools                                       |
+| `OPS_SEARCH_CA_FILE`                    | no       | PEM CA bundle when the search cluster has a self-signed certificate                                                                    |
 | `OPS_K8S_NAMESPACES`                    | no       | comma-separated namespaces the agent may inspect; unset = no Kubernetes tools                                                          |
 | `OPS_K8S_SERVER`                        | no       | API server URL when running outside the cluster (in a pod the ServiceAccount provides it)                                              |
 | `OPS_K8S_TOKEN_FILE`, `OPS_K8S_CA_FILE` | no       | override the mounted ServiceAccount token and CA paths                                                                                 |
@@ -28,7 +30,7 @@ All settings are environment variables. stdout is the MCP channel; logs go to st
 | `OPS_KNOWN_SECRETS_DIR`                 | no       | directory with one value per file (a mounted Kubernetes Secret), scrubbed the same way                                                 |
 | `OPS_MAX_LEVEL`                         | no       | must be `1` (read-only) in v1; anything higher refuses to boot                                                                         |
 
-Passwords in `OPS_PG_URL`, `OPS_REDIS_URL` and `OPS_PROM_URL` are scrubbed from output automatically.
+Passwords in `OPS_PG_URL`, `OPS_REDIS_URL`, `OPS_PROM_URL` and `OPS_SEARCH_URL` are scrubbed from output automatically.
 
 ### Redacting the applications' own secrets
 
@@ -66,19 +68,23 @@ packages/mcp-server/                the only code that touches infra
   src/adapters/k8s.ts               read-only Kubernetes client (GET only, ServiceAccount token)
   src/adapters/redis.ts             read-only Redis/Valkey client (command allowlist, ops_ro ACL user)
   src/adapters/prometheus.ts        Prometheus-compatible query API client (instant queries only)
+  src/adapters/search.ts            read-only OpenSearch/Elasticsearch client (GET only, path allowlist)
+  src/lib/http-get.ts               the GET the HTTP adapters share (size cap, silence timeout, abort)
   src/tools/postgres/slow-queries.ts  pg_slow_queries — the reference tool; copy its shape
   src/tools/postgres/               shared (session columns), activity, blocking, job-queues (pg-boss)
   src/tools/k8s/                    shared (namespace allowlist), pods, events, logs
   src/tools/redis/                  shared (INFO parsing, key masking), health, slowlog
   src/tools/prometheus/             volume-usage (PersistentVolumeClaim disk usage)
+  src/tools/search/                 cluster-health, watermarks
   src/lib/sql-text.ts               strips literals/comments from live query text
   test/harness.ts                   real MCP server + client over in-memory transport (useHarness in tests)
-  test/{unit,integration}/<area>/   tests grouped by area: core, postgres, k8s, redis, prometheus
+  test/{unit,integration}/<area>/   tests grouped by area: core, postgres, k8s, redis, prometheus, search
   lab/scenarios/<area>/             fault lab scenarios
 deploy/sql/ops_ro.sql    one-time Postgres role setup
 deploy/sql/ops_ro_pgboss.sql  optional: lets ops_ro read pg-boss queue counters (never job payloads)
 deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
 deploy/redis/ops-ro.acl  read-only, keyless ACL user for Redis/Valkey
+deploy/search/           monitor-only roles for OpenSearch and Elasticsearch (no document reads)
 ```
 
 ## Tests

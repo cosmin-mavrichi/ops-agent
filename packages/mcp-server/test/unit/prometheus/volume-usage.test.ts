@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatBytes,
-  namespaceMatcher,
-  promVolumeUsage,
-  summarizeVolumes,
-} from "../../../src/tools/prometheus/volume-usage.js";
+import { namespaceMatcher, promVolumeUsage, summarizeVolumes } from "../../../src/tools/prometheus/volume-usage.js";
 import { useHarness } from "../../harness.js";
 import { fakeK8s } from "../k8s/fake-k8s.js";
 import { claim, type FakeSeries, fakeProm, GIB } from "./fake-prom.js";
@@ -101,16 +96,5 @@ describe("prom_volume_usage (unit)", () => {
 describe("namespaceMatcher", () => {
   it.each(['app"} or vector(1) #', "a|b", "App", ""])("refuses %j from the allowlist", (namespace) => {
     expect(() => namespaceMatcher([namespace])).toThrow(/not a Kubernetes namespace/);
-  });
-});
-
-describe("formatBytes", () => {
-  it.each([
-    [0, "0 B"],
-    [512, "512 B"],
-    [1536, "1.5 KiB"],
-    [9.5 * GIB, "9.5 GiB"],
-  ])("formats %d as %s", (bytes, text) => {
-    expect(formatBytes(bytes)).toBe(text);
   });
 });

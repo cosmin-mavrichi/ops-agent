@@ -2,12 +2,20 @@ import { rmSync } from "node:fs";
 import { createPgClient } from "../src/adapters/pg.js";
 import { createPromClient } from "../src/adapters/prometheus.js";
 import { createRedisClient } from "../src/adapters/redis.js";
+import { createSearchClient } from "../src/adapters/search.js";
 import { readSecretsDir } from "../src/lib/known-secrets.js";
 import { allTools, toolsFor } from "../src/tools/index.js";
+import type { Adapter } from "../src/types.js";
 import { startHarness } from "../test/harness.js";
 import { type K3sFixture, startK3s } from "../test/integration/k8s/k8s-fixture.js";
 import { OPS_PW, type PgFixture, startPostgres } from "../test/integration/postgres/pg-fixture.js";
 import { OPS_REDIS_PW, type RedisFixture, startRedis } from "../test/integration/redis/redis-fixture.js";
+import {
+  type Engine,
+  OPS_SEARCH_PW,
+  type SearchFixture,
+  startSearch,
+} from "../test/integration/search/search-fixture.js";
 import { startMonitoring } from "./monitoring.js";
 
 export type ToolResult = Awaited<ReturnType<Awaited<ReturnType<typeof startHarness>>["call"]>>;
@@ -34,6 +42,8 @@ export interface Scenario {
    * Separate from `secrets`: a scenario can plant secrets nobody told the agent about.
    */
   readonly mountedSecrets?: Readonly<Record<string, string>>;
+  /** A search engine, started only for the scenarios that need one (it takes a GiB of memory). */
+  readonly search?: { readonly engine: Engine; readonly dataMb: number };
   /** Breaks one thing and waits until the failure is observable. */
   break(lab: Lab): Promise<void>;
   readonly evidence: readonly Evidence[];
@@ -45,23 +55,39 @@ export interface Lab {
   readonly db: PgFixture;
   /** Valkey, the Redis-compatible server a new self-hosted setup most likely runs. */
   readonly cache: RedisFixture;
+  /** Only when the scenario asked for one. */
+  readonly search: SearchFixture | undefined;
   call(tool: string, args?: Record<string, unknown>): Promise<ToolResult>;
   /** Registers cleanup that must run before the containers stop (e.g. closing app sessions). */
   onStop(cleanup: () => Promise<unknown>): void;
   stop(): Promise<void>;
 }
 
-export async function startLab(mountedSecrets: Readonly<Record<string, string>> = {}): Promise<Lab> {
-  const [k3s, db, cache] = await Promise.all([startK3s(), startPostgres(), startRedis("valkey")]);
+type LabNeeds = Pick<Scenario, "mountedSecrets" | "search">;
+
+export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
+  const searchStarting = needs.search ? startSearch(needs.search.engine, needs.search.dataMb) : undefined;
+  const [k3s, db, cache, search] = await Promise.all([
+    startK3s(),
+    startPostgres(),
+    startRedis("valkey"),
+    searchStarting,
+  ]);
   const pg = createPgClient({ connectionString: db.opsUrl, onError: () => {} });
-  const [appSecrets, monitoring] = await Promise.all([readMountedSecrets(k3s, mountedSecrets), startMonitoring(k3s)]);
+  const [appSecrets, monitoring] = await Promise.all([
+    readMountedSecrets(k3s, needs.mountedSecrets ?? {}),
+    startMonitoring(k3s),
+  ]);
+  const searchAdapters: Adapter[] = search ? ["search"] : [];
+  const searchClient = search ? createSearchClient({ url: search.opsUrl }) : undefined;
   const harness = await startHarness({
-    tools: toolsFor(allTools, ["pg", "k8s", "redis", "prom"]),
+    tools: toolsFor(allTools, ["pg", "k8s", "redis", "prom", ...searchAdapters]),
     pg,
     k8s: k3s.ops,
     redis: createRedisClient({ url: cache.opsUrl, onError: () => {} }),
     prom: createPromClient({ url: monitoring.prometheus.url }),
-    knownSecrets: [OPS_PW, k3s.token, OPS_REDIS_PW, monitoring.token, ...appSecrets],
+    search: searchClient,
+    knownSecrets: [OPS_PW, k3s.token, OPS_REDIS_PW, OPS_SEARCH_PW, monitoring.token, ...appSecrets],
   });
   const cleanups: Array<() => Promise<unknown>> = [];
 
@@ -69,13 +95,14 @@ export async function startLab(mountedSecrets: Readonly<Record<string, string>> 
     k3s,
     db,
     cache,
+    search,
     call: (tool, args = {}) => harness.call(tool, args),
     onStop: (cleanup) => cleanups.push(cleanup),
     async stop() {
       for (const cleanup of cleanups.toReversed()) await cleanup().catch(() => undefined);
       await harness.close();
       await pg.end();
-      await Promise.all([monitoring.prometheus.stop(), k3s.stop(), db.stop(), cache.stop()]);
+      await Promise.all([monitoring.prometheus.stop(), k3s.stop(), db.stop(), cache.stop(), search?.stop()]);
     },
   };
 }

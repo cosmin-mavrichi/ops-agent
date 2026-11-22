@@ -22,6 +22,10 @@ const Env = z.object({
   OPS_REDIS_URL: z.url({ protocol: /^rediss?$/ }).optional(),
   /** Prometheus-compatible query API, e.g. http://prometheus.monitoring:9090. Unset = no metrics tools. */
   OPS_PROM_URL: z.url({ protocol: /^https?$/ }).optional(),
+  /** OpenSearch or Elasticsearch URL as the ops_ro user. Unset = no search tools. */
+  OPS_SEARCH_URL: z.url({ protocol: /^https?$/ }).optional(),
+  /** PEM CA bundle for a search cluster with a self-signed certificate. */
+  OPS_SEARCH_CA_FILE: z.string().min(1).optional(),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -30,13 +34,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     // v1 guard: refuse to boot with write tools until v2 adds approvals.
     throw new Error("OPS_MAX_LEVEL > 1 is not supported in v1");
   }
-  const urlPasswords = [vars.OPS_PG_URL, vars.OPS_REDIS_URL, vars.OPS_PROM_URL]
+  const urlPasswords = [vars.OPS_PG_URL, vars.OPS_REDIS_URL, vars.OPS_PROM_URL, vars.OPS_SEARCH_URL]
     .map(passwordIn)
     .filter((pw) => pw !== undefined);
   return {
     pgUrl: vars.OPS_PG_URL,
     redisUrl: vars.OPS_REDIS_URL,
     promUrl: vars.OPS_PROM_URL,
+    search: searchConfig(vars),
     maxLevel: vars.OPS_MAX_LEVEL as Level,
     knownSecrets: [...splitList(vars.OPS_KNOWN_SECRETS), ...urlPasswords],
     knownSecretsDir: vars.OPS_KNOWN_SECRETS_DIR,
@@ -45,6 +50,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
 }
 
 export type K8sSettings = NonNullable<ReturnType<typeof k8sConfig>>;
+export type SearchSettings = NonNullable<ReturnType<typeof searchConfig>>;
 
 function k8sConfig(vars: z.infer<typeof Env>) {
   const namespaces = splitList(vars.OPS_K8S_NAMESPACES);
@@ -74,4 +80,9 @@ function passwordIn(url: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function searchConfig(vars: z.infer<typeof Env>) {
+  if (!vars.OPS_SEARCH_URL) return undefined;
+  return { url: vars.OPS_SEARCH_URL, caFile: vars.OPS_SEARCH_CA_FILE };
 }

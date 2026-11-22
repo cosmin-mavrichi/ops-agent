@@ -1,0 +1,5 @@
+{
+  "_comment": "Role for the ops agent on OpenSearch (security plugin). Monitoring only: no document reads, no settings changes. Apply: PUT _plugins/_security/api/roles/ops_ro with this body (without _comment), create the internal user ops_ro, map it with PUT _plugins/_security/api/rolesmapping/ops_ro {\"users\": [\"ops_ro\"]}.",
+  "cluster_permissions": ["cluster_monitor"],
+  "index_permissions": [{ "index_patterns": ["*"], "allowed_actions": ["indices_monitor"] }]
+}

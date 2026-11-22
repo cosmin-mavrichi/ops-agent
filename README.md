@@ -67,7 +67,7 @@ packages/mcp-server/                the only code that touches infra
   src/adapters/redis.ts             read-only Redis/Valkey client (command allowlist, ops_ro ACL user)
   src/adapters/prometheus.ts        Prometheus-compatible query API client (instant queries only)
   src/tools/postgres/slow-queries.ts  pg_slow_queries — the reference tool; copy its shape
-  src/tools/postgres/               shared (session columns), activity, blocking
+  src/tools/postgres/               shared (session columns), activity, blocking, job-queues (pg-boss)
   src/tools/k8s/                    shared (namespace allowlist), pods, events, logs
   src/tools/redis/                  shared (INFO parsing, key masking), health, slowlog
   src/tools/prometheus/             volume-usage (PersistentVolumeClaim disk usage)
@@ -76,6 +76,7 @@ packages/mcp-server/                the only code that touches infra
   test/{unit,integration}/<area>/   tests grouped by area: core, postgres, k8s, redis, prometheus
   lab/scenarios/<area>/             fault lab scenarios
 deploy/sql/ops_ro.sql    one-time Postgres role setup
+deploy/sql/ops_ro_pgboss.sql  optional: lets ops_ro read pg-boss queue counters (never job payloads)
 deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
 deploy/redis/ops-ro.acl  read-only, keyless ACL user for Redis/Valkey
 ```

@@ -10,7 +10,7 @@
     "typecheck": "tsc -p . --noEmit",
     "start": "node dist/src/index.js",
     "test": "vitest run test/unit",
-    "test:int": "vitest run test/integration --no-file-parallelism",
+    "test:int": "vitest run test/integration",
     "lab": "vitest run lab --no-file-parallelism --reporter=verbose"
   },
   "keywords": [],
@@ -28,6 +28,7 @@
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "pg-boss": "12.38.2",
     "testcontainers": "^12.2.1",
     "typescript": "^7.0.2",
     "vitest": "^5.1.1"

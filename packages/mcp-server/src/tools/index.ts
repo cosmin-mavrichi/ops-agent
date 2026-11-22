@@ -6,6 +6,7 @@ import { k8sPgBackups } from "./k8s/pg-backups.js";
 import { k8sPods } from "./k8s/pods.js";
 import { pgActivity } from "./postgres/activity.js";
 import { pgBlocking } from "./postgres/blocking.js";
+import { pgJobQueues } from "./postgres/job-queues.js";
 import { pgSlowQueries } from "./postgres/slow-queries.js";
 import { promVolumeUsage } from "./prometheus/volume-usage.js";
 import { redisHealth } from "./redis/health.js";
@@ -16,6 +17,7 @@ export const allTools: ToolDef<any>[] = [
   pgSlowQueries,
   pgActivity,
   pgBlocking,
+  pgJobQueues,
   k8sPods,
   k8sEvents,
   k8sLogs,

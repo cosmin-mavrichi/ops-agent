@@ -13,7 +13,7 @@ merge to `main` when green.
 | 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                   | done    |
 | 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                        | done    |
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys  | done    |
-| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | doing   |
+| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | done    |
 | 5c  | Search engines, read-only: OpenSearch, Elasticsearch and Meilisearch (see below)                                                                                                                      | planned |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                               | planned |
 
@@ -27,8 +27,9 @@ merge to `main` when green.
 - **Disk/PVC usage:** `prom_volume_usage` through a read-only Prometheus adapter (`kubelet_volume_stats_*`: used,
   capacity, inodes, growth rate and time until full); lab scenario volume-full, with the lab's own Prometheus
   scraping the kubelet. Done.
-- **Queue backlog:** Postgres job queues first (pending count, oldest job's age, failures, with fixed SQL per
-  library: pg-boss, Graphile Worker); which library to support first is still open. Scenario paused worker.
+- **Queue backlog:** `pg_job_queues` for pg-boss, from its own per-queue counters (ready, active, failed, oldest
+  wait, last window); `ops_ro` gets column grants on `pgboss.queue` only (`deploy/sql/ops_ro_pgboss.sql`); lab
+  scenario paused-worker. Done.
 
 **Step 5c, search engines.** OpenSearch first (Apache 2.0, Linux Foundation), Elasticsearch tested too (same
 diagnostic APIs, as with Valkey/Redis), plus Meilisearch (already in the stack).
@@ -106,6 +107,8 @@ Smaller items, not tied to a step. Move into a step when picked up.
   redact those forms too.
 - **Bearer token for Prometheus.** `OPS_PROM_URL` supports basic auth only; hosted Mimir/Thanos setups often
   want a bearer token (or a tenant header). Add `OPS_PROM_TOKEN_FILE` when one is needed.
+- **More job queues.** `pg_job_queues` reads pg-boss in its default schema `pgboss` only. Add a configurable
+  schema when an app uses another, and Graphile Worker (the other common Postgres queue) when one needs it.
 - **Stuck backups.** A backup to an unreachable object store stays `running` for a long time instead of
   failing; `k8s_pg_backups` could flag one running far longer than usual.
 - **Dependency policy cleanup.** Drop the `minimumReleaseAgeExclude` entries for vitest 5.1.1 once it is older than
@@ -119,6 +122,10 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Job queues: Postgres first, Redis later** (2026-11-22). Backlog for Redis-based queues (BullMQ) means reading
   queue keys, which the keyless `ops_ro` ACL user deliberately cannot; add it only when an app needs it, with a
   narrow key pattern.
+- **pg-boss first, from its counters** (2026-11-22). The most used Postgres job queue in Node (about 20M npm
+  downloads a month against Graphile Worker's 5M). Its `queue` table already holds the counts pg-boss refreshes
+  every minute, so the agent needs no access to `job`, where payloads and errors live. Counts older than 5
+  minutes are reported as stale: no pg-boss instance is running.
 - **cert-manager: namespaced Issuers only** (2026-11-22). ClusterIssuers are cluster-scoped and would need a
   ClusterRole; `k8s_certificates` reports them as not inspected instead.
 

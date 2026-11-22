@@ -12,6 +12,7 @@ import { expiringCertificate } from "./scenarios/k8s/expiring-certificate.js";
 import { volumeFull } from "./scenarios/k8s/volume-full.js";
 import { failingBackups } from "./scenarios/postgres/failing-backups.js";
 import { lockContention } from "./scenarios/postgres/lock-contention.js";
+import { pausedWorker } from "./scenarios/postgres/paused-worker.js";
 import { cacheFull } from "./scenarios/redis/cache-full.js";
 import { slowKeys } from "./scenarios/redis/slow-keys.js";
 import { appSecretInLogs } from "./scenarios/security/app-secret-in-logs.js";
@@ -23,6 +24,7 @@ const scenarios: readonly Scenario[] = [
   volumeFull,
   failingBackups,
   lockContention,
+  pausedWorker,
   cacheFull,
   slowKeys,
   promptInjection,

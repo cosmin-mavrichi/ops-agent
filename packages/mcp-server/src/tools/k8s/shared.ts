@@ -47,9 +47,18 @@ export const DAY_S = 24 * HOUR_S;
 export const toDays = (seconds: number) => Math.round((seconds / DAY_S) * 10) / 10;
 const toHours = (seconds: number) => Math.round((seconds / HOUR_S) * 10) / 10;
 
-/** Under a day in hours: something an hour away is not "0 days" away. */
+const MINUTE_S = 60;
+
+function spanParts(seconds: number): readonly [number, string] {
+  if (seconds >= DAY_S) return [toDays(seconds), "day"];
+  if (seconds >= HOUR_S) return [toHours(seconds), "hour"];
+  if (seconds >= MINUTE_S) return [Math.round(seconds / MINUTE_S), "minute"];
+  return [Math.round(seconds), "second"];
+}
+
+/** In the largest unit that isn't zero: something an hour away is not "0 days" away. */
 export function describeSpan(seconds: number): string {
-  const [amount, unit] = seconds >= DAY_S ? [toDays(seconds), "day"] : [toHours(seconds), "hour"];
+  const [amount, unit] = spanParts(seconds);
   return `${amount} ${unit}${amount === 1 ? "" : "s"}`;
 }
 

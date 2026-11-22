@@ -63,6 +63,7 @@ describe("level gating", () => {
         "k8s_certificates",
         "k8s_events",
         "k8s_logs",
+        "k8s_pg_backups",
         "k8s_pods",
         "pg_activity",
         "pg_blocking",

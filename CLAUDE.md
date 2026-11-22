@@ -94,6 +94,8 @@ Planned work and the backlog live in `ROADMAP.md`. Update its status column and 
 
 ## Workflow
 
+**Never commit until the owner has reviewed the diff.** After a change: run the checks, summarize the diff, and stop. Commit, push or open a PR only on an explicit go-ahead for that change.
+
 The repo is public (`github.com/cosmin-mavrichi/ops-agent`). `main` is protected by a ruleset: changes land only through a pull request whose `unit` and `integration` jobs pass on its latest commit; no force-pushes, merge commits only. Work on a branch, `gh pr create`, wait for CI, then `gh pr merge --merge --delete-branch --author-email 219865907+cosmin-mavrichi@users.noreply.github.com` (without `--author-email`, GitHub may author the merge commit with a personal address). Commit with the GitHub noreply email set in this repo's git config, never a personal address. Workflow actions are pinned to commit SHAs (Dependabot updates them); keep new ones pinned the same way with the version in a trailing comment.
 
 SDK v2 behaviour to know: calling an unknown/hidden tool rejects with a `ProtocolError` (not an `isError` result).

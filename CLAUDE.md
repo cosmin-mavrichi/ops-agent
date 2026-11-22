@@ -36,7 +36,7 @@ pnpm exec vitest run test/unit/k8s          # one area
 pnpm exec vitest run test/unit -t "hidden tool"
 ```
 
-Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) and `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output). Kubernetes tools are exposed only when `OPS_K8S_NAMESPACES` is set (comma-separated allowlist); in a pod the API server, token and CA come from the mounted ServiceAccount, outside one set `OPS_K8S_SERVER` (plus `OPS_K8S_TOKEN_FILE`/`OPS_K8S_CA_FILE`). stdout is the MCP channel, so all logging goes to stderr.
+Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `OPS_MAX_LEVEL` (must be 1 in v1, boot fails otherwise) and `OPS_KNOWN_SECRETS` (comma-separated values scrubbed verbatim from output). Kubernetes tools are exposed only when `OPS_K8S_NAMESPACES` is set (comma-separated allowlist); in a pod the API server, token and CA come from the mounted ServiceAccount, outside one set `OPS_K8S_SERVER` (plus `OPS_K8S_TOKEN_FILE`/`OPS_K8S_CA_FILE`). Redis/Valkey tools are exposed only when `OPS_REDIS_URL` is set, with the `ops_ro` ACL user in the URL. stdout is the MCP channel, so all logging goes to stderr.
 
 ## Code style
 
@@ -65,6 +65,8 @@ Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `
 
 **Kubernetes access is read-only in three layers:** the `ops-ro` ServiceAccount may only `get`/`list`/`watch` pods, pods/log and events in granted namespaces (`deploy/k8s/ops-ro.yaml`; no secrets, configmaps or exec), the adapter only sends GET (`src/adapters/k8s.ts`), and tools refuse namespaces outside `OPS_K8S_NAMESPACES` before calling the API and build paths only from zod-validated Kubernetes names. Pod specs hold `env`/`args`, which often carry secrets: tools read `status` plus image and resource limits only, and the `Pod` type in `src/tools/k8s/pods.ts` deliberately omits those fields.
 
+**Redis/Valkey access is read-only in three layers:** the `ops_ro` ACL user (`deploy/redis/ops-ro.acl`) starts from `reset` (no keys, no channels) and may only run `INFO`, `SLOWLOG GET/LEN`, `CLIENT LIST/SETNAME`, `LATENCY LATEST` and `PING` (no `CONFIG`: `CONFIG GET` returns passwords), the adapter (`src/adapters/redis.ts`) refuses any other command before sending it, and tools never ask for values and mask key names with `maskKey` (`session:9f2c…` → `session:?`), because keys often embed tokens or user ids. Valkey is the primary target and Redis 8 is tested too; Valkey reports its real version in `valkey_version` (`redis_version` is frozen at 7.2.4), which `redis_health` handles.
+
 Tools declare the adapters they need (`requires`); `toolsFor` in `src/tools/index.ts` drops tools whose adapter isn't configured, so they are never exposed.
 
 `src/tools/postgres/slow-queries.ts` (`pg_slow_queries`) is the reference tool; copy its shape for new tools. Tool sources are grouped by adapter (`src/tools/postgres/`, `src/tools/k8s/`), one file per tool or close pair, plus a `shared.ts` for helpers they share.
@@ -75,7 +77,7 @@ Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, whi
 
 `test/harness.ts` starts a real MCP server and client over `InMemoryTransport`, so tests go through the actual protocol (`listTools`/`callTool`). In tool tests use `const harness = useHarness()` at file level and `const h = await harness({...})` per test; it closes the server after each test. Both transport halves must come from the same SDK package.
 
-Tests are grouped by area in both `test/unit/` and `test/integration/`: `core/` (registry, config, limits, redaction), `postgres/`, `k8s/`; a new adapter gets its own folder in each. Integration tests share container setups: `test/integration/postgres/pg-fixture.ts` (`startPostgres`) and `test/integration/k8s/k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production).
+Tests are grouped by area in both `test/unit/` and `test/integration/`: `core/` (registry, config, limits, redaction), `postgres/`, `k8s/`; a new adapter gets its own folder in each. Integration tests share container setups: `test/integration/postgres/pg-fixture.ts` (`startPostgres`), `test/integration/redis/redis-fixture.ts` (`startRedis("valkey" | "redis")`, which applies `deploy/redis/ops-ro.acl`) and `test/integration/k8s/k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production).
 
 Output is redacted per string before serialization (`registry.ts`); redacting the JSON text corrupts it and misses escaped secrets.
 
@@ -86,12 +88,14 @@ Rules for adding a tool:
 - at least one secret planted in its fixture that must not appear in output,
 - updating the inline snapshot in `registry.test.ts` ("real v1 tool list"); it exists so surface changes are deliberate.
 
-**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`.
+**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres + Valkey, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`.
 
 Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 
 ## Workflow
 
-The repo is public (`github.com/cosmin-mavrichi/ops-agent`). `main` is protected by a ruleset: changes land only through a pull request whose `unit` and `integration` jobs pass on its latest commit; no force-pushes, merge commits only. Work on a branch, `gh pr create`, wait for CI, then `gh pr merge --merge --delete-branch`. Commit with the GitHub noreply email set in this repo's git config, never a personal address. Workflow actions are pinned to commit SHAs (Dependabot updates them); keep new ones pinned the same way with the version in a trailing comment.
+**Never commit until the owner has reviewed the diff.** After a change: run the checks, summarize the diff, and stop. Commit, push or open a PR only on an explicit go-ahead for that change.
+
+The repo is public (`github.com/cosmin-mavrichi/ops-agent`). `main` is protected by a ruleset: changes land only through a pull request whose `unit` and `integration` jobs pass on its latest commit; no force-pushes, merge commits only. Work on a branch, `gh pr create`, wait for CI, then `gh pr merge --merge --delete-branch --author-email 219865907+cosmin-mavrichi@users.noreply.github.com` (without `--author-email`, GitHub may author the merge commit with a personal address). Commit with the GitHub noreply email set in this repo's git config, never a personal address. Workflow actions are pinned to commit SHAs (Dependabot updates them); keep new ones pinned the same way with the version in a trailing comment.
 
 SDK v2 behaviour to know: calling an unknown/hidden tool rejects with a `ProtocolError` (not an `isError` result).

@@ -4,7 +4,7 @@ import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
 import { afterEach } from "vitest";
 import { createRedactor } from "../src/lib/redact.js";
 import { type AuditEntry, registerTools } from "../src/registry.js";
-import { type K8sClient, Level, type SqlClient, type ToolDef } from "../src/types.js";
+import { type K8sClient, Level, type RedisClient, type SqlClient, type ToolDef } from "../src/types.js";
 
 /**
  * Spins up a real MCP server + client over an in-memory transport.
@@ -14,6 +14,7 @@ export interface HarnessOptions {
   tools: ToolDef<any>[];
   pg?: SqlClient;
   k8s?: K8sClient;
+  redis?: RedisClient;
   maxLevel?: Level;
   knownSecrets?: string[];
 }
@@ -29,6 +30,7 @@ export async function startHarness(opts: HarnessOptions) {
     context: (signal) => ({
       pg: opts.pg ?? missingPg,
       k8s: opts.k8s ?? missingK8s,
+      redis: opts.redis ?? missingRedis,
       signal,
       log: () => {},
     }),
@@ -83,3 +85,4 @@ const notInThisTest = (adapter: string) => async (): Promise<never> => {
 };
 const missingPg: SqlClient = { query: notInThisTest("pg") };
 const missingK8s: K8sClient = { namespaces: [], getJson: notInThisTest("k8s"), getText: notInThisTest("k8s") };
+const missingRedis: RedisClient = { send: notInThisTest("redis") };

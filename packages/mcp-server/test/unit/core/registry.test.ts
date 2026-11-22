@@ -66,6 +66,8 @@ describe("level gating", () => {
         "pg_activity",
         "pg_blocking",
         "pg_slow_queries",
+        "redis_health",
+        "redis_slowlog",
       ]
     `);
     expect(allTools.every((t) => t.level === Level.Read)).toBe(true);

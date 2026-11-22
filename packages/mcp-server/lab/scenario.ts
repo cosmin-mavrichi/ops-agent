@@ -1,8 +1,10 @@
 import { createPgClient } from "../src/adapters/pg.js";
+import { createRedisClient } from "../src/adapters/redis.js";
 import { allTools, toolsFor } from "../src/tools/index.js";
 import { startHarness } from "../test/harness.js";
 import { type K3sFixture, startK3s } from "../test/integration/k8s/k8s-fixture.js";
 import { OPS_PW, type PgFixture, startPostgres } from "../test/integration/postgres/pg-fixture.js";
+import { OPS_REDIS_PW, type RedisFixture, startRedis } from "../test/integration/redis/redis-fixture.js";
 
 export type ToolResult = Awaited<ReturnType<Awaited<ReturnType<typeof startHarness>>["call"]>>;
 
@@ -32,6 +34,8 @@ export interface Scenario {
 export interface Lab {
   readonly k3s: K3sFixture;
   readonly db: PgFixture;
+  /** Valkey, the Redis-compatible server a new self-hosted setup most likely runs. */
+  readonly cache: RedisFixture;
   call(tool: string, args?: Record<string, unknown>): Promise<ToolResult>;
   /** Registers cleanup that must run before the containers stop (e.g. closing app sessions). */
   onStop(cleanup: () => Promise<unknown>): void;
@@ -39,26 +43,28 @@ export interface Lab {
 }
 
 export async function startLab(): Promise<Lab> {
-  const [k3s, db] = await Promise.all([startK3s(), startPostgres()]);
+  const [k3s, db, cache] = await Promise.all([startK3s(), startPostgres(), startRedis("valkey")]);
   const pg = createPgClient({ connectionString: db.opsUrl, onError: () => {} });
   const harness = await startHarness({
-    tools: toolsFor(allTools, ["pg", "k8s"]),
+    tools: toolsFor(allTools, ["pg", "k8s", "redis"]),
     pg,
     k8s: k3s.ops,
-    knownSecrets: [OPS_PW, k3s.token],
+    redis: createRedisClient({ url: cache.opsUrl, onError: () => {} }),
+    knownSecrets: [OPS_PW, k3s.token, OPS_REDIS_PW],
   });
   const cleanups: Array<() => Promise<unknown>> = [];
 
   return {
     k3s,
     db,
+    cache,
     call: (tool, args = {}) => harness.call(tool, args),
     onStop: (cleanup) => cleanups.push(cleanup),
     async stop() {
       for (const cleanup of cleanups.toReversed()) await cleanup().catch(() => undefined);
       await harness.close();
       await pg.end();
-      await Promise.all([k3s.stop(), db.stop()]);
+      await Promise.all([k3s.stop(), db.stop(), cache.stop()]);
     },
   };
 }

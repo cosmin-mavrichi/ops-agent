@@ -7,6 +7,12 @@ export enum Level {
   Dangerous = 3, // explicit approval every time (restore, schema change, major upgrade)
 }
 
+/**
+ * The name the agent's own connections carry (Postgres application_name, Redis client name), so tools
+ * can leave the agent out of what they report.
+ */
+export const AGENT_CLIENT_NAME = "ops-mcp";
+
 export interface SqlClient {
   query<T extends Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
 }
@@ -21,12 +27,18 @@ export interface K8sClient {
   getText(path: string, signal?: AbortSignal, query?: QueryParams): Promise<string>;
 }
 
-export type Adapter = "pg" | "k8s";
+/** Read-only Redis access. The adapter refuses any command outside its allowlist before sending it. */
+export interface RedisClient {
+  send(command: readonly string[], signal?: AbortSignal): Promise<unknown>;
+}
+
+export type Adapter = "pg" | "k8s" | "redis";
 
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
   pg: SqlClient;
   k8s: K8sClient;
+  redis: RedisClient;
   signal: AbortSignal;
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }

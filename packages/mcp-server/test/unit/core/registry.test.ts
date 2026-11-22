@@ -68,6 +68,7 @@ describe("level gating", () => {
         "pg_activity",
         "pg_blocking",
         "pg_slow_queries",
+        "prom_volume_usage",
         "redis_health",
         "redis_slowlog",
       ]

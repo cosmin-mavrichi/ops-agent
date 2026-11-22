@@ -20,6 +20,8 @@ const Env = z.object({
   KUBERNETES_SERVICE_PORT: z.string().default("443"),
   /** Redis URL with the ops_ro ACL user, e.g. redis://ops_ro:pw@redis:6379. Unset = no Redis tools. */
   OPS_REDIS_URL: z.url({ protocol: /^rediss?$/ }).optional(),
+  /** Prometheus-compatible query API, e.g. http://prometheus.monitoring:9090. Unset = no metrics tools. */
+  OPS_PROM_URL: z.url({ protocol: /^https?$/ }).optional(),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -28,10 +30,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     // v1 guard: refuse to boot with write tools until v2 adds approvals.
     throw new Error("OPS_MAX_LEVEL > 1 is not supported in v1");
   }
-  const urlPasswords = [vars.OPS_PG_URL, vars.OPS_REDIS_URL].map(passwordIn).filter((pw) => pw !== undefined);
+  const urlPasswords = [vars.OPS_PG_URL, vars.OPS_REDIS_URL, vars.OPS_PROM_URL]
+    .map(passwordIn)
+    .filter((pw) => pw !== undefined);
   return {
     pgUrl: vars.OPS_PG_URL,
     redisUrl: vars.OPS_REDIS_URL,
+    promUrl: vars.OPS_PROM_URL,
     maxLevel: vars.OPS_MAX_LEVEL as Level,
     knownSecrets: [...splitList(vars.OPS_KNOWN_SECRETS), ...urlPasswords],
     knownSecretsDir: vars.OPS_KNOWN_SECRETS_DIR,

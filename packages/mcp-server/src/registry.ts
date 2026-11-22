@@ -61,7 +61,7 @@ function registerTool(server: McpServer, def: ToolDef<any>, opts: RegistryOption
   server.registerTool(def.name, config, createHandler(def, schema, opts) as any);
 }
 
-function createHandler(def: ToolDef<any>, schema: z.ZodObject<z.ZodRawShape>, opts: RegistryOptions) {
+function createHandler(def: ToolDef<any>, schema: z.ZodObject<z.core.$ZodShape>, opts: RegistryOptions) {
   const timeoutMs = def.timeoutMs ?? opts.defaultTimeoutMs ?? 10_000;
   const maxChars = def.maxOutputChars ?? opts.defaultMaxOutputChars ?? 12_000;
 

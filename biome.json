@@ -9,7 +9,7 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
-      "suspicious": { "noExplicitAny": "error" },
+      "suspicious": { "noExplicitAny": "error", "noDeprecatedImports": "error" },
       "style": { "useConst": "error", "noParameterAssign": "error", "useReadonlyClassProperties": "error" },
       "nursery": { "noFloatingPromises": "error", "noMisusedPromises": "error" }
     }

@@ -7,6 +7,7 @@ import { k8sPods } from "./k8s/pods.js";
 import { pgActivity } from "./postgres/activity.js";
 import { pgBlocking } from "./postgres/blocking.js";
 import { pgSlowQueries } from "./postgres/slow-queries.js";
+import { promVolumeUsage } from "./prometheus/volume-usage.js";
 import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
 
@@ -22,6 +23,7 @@ export const allTools: ToolDef<any>[] = [
   k8sPgBackups,
   redisHealth,
   redisSlowlog,
+  promVolumeUsage,
 ];
 
 /** Tools whose adapters are all configured; the rest are not exposed at all. */

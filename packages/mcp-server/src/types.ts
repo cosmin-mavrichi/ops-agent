@@ -32,18 +32,30 @@ export interface RedisClient {
   send(command: readonly string[], signal?: AbortSignal): Promise<unknown>;
 }
 
-export type Adapter = "pg" | "k8s" | "redis";
+/** One series of an instant query: its labels and current value. */
+export interface PromSample {
+  readonly labels: Readonly<Record<string, string>>;
+  readonly value: number;
+}
+
+/** Read-only Prometheus-compatible query API (Prometheus, VictoriaMetrics, Mimir, Thanos). Queries are fixed. */
+export interface PromClient {
+  query(promql: string, signal?: AbortSignal): Promise<PromSample[]>;
+}
+
+export type Adapter = "pg" | "k8s" | "redis" | "prom";
 
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
   pg: SqlClient;
   k8s: K8sClient;
   redis: RedisClient;
+  prom: PromClient;
   signal: AbortSignal;
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
-export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
+export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape> {
   name: string;
   level: Level;
   title: string;
@@ -58,7 +70,7 @@ export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
 }
 
 /** Identity helper that keeps `args` typed from the zod shape. */
-export function defineTool<S extends z.ZodRawShape>(def: ToolDef<S>): ToolDef<S> {
+export function defineTool<S extends z.core.$ZodShape>(def: ToolDef<S>): ToolDef<S> {
   return def;
 }
 

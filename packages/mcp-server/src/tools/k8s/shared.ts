@@ -48,8 +48,10 @@ export const toDays = (seconds: number) => Math.round((seconds / DAY_S) * 10) / 
 const toHours = (seconds: number) => Math.round((seconds / HOUR_S) * 10) / 10;
 
 /** Under a day in hours: something an hour away is not "0 days" away. */
-export const describeSpan = (seconds: number) =>
-  seconds >= DAY_S ? `${toDays(seconds)} days` : `${toHours(seconds)} hours`;
+export function describeSpan(seconds: number): string {
+  const [amount, unit] = seconds >= DAY_S ? [toDays(seconds), "day"] : [toHours(seconds), "hour"];
+  return `${amount} ${unit}${amount === 1 ? "" : "s"}`;
+}
 
 /** A status condition, as Kubernetes operators report them. */
 export interface Condition {

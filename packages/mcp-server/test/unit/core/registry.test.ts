@@ -67,6 +67,7 @@ describe("level gating", () => {
         "k8s_pods",
         "pg_activity",
         "pg_blocking",
+        "pg_job_queues",
         "pg_slow_queries",
         "prom_volume_usage",
         "redis_health",

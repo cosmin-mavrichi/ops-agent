@@ -19,6 +19,15 @@ export function parsePairs(text: string, separator: "," | " "): ReadonlyMap<stri
   return pairs;
 }
 
+/** One decimal place: enough precision for milliseconds and MiB. */
+export const oneDecimal = (value: number) => Math.round(value * 10) / 10;
+
+/** Redis reports times as unix seconds. */
+export function secondsSince(unixTime: number, now: Date): number {
+  const elapsed = now.getTime() / 1000 - unixTime;
+  return Math.max(0, Math.round(elapsed));
+}
+
 /**
  * Key names often embed user ids, emails or tokens (`session:9f2c…`). Keeps the segments that are
  * short plain words and replaces the rest with `?`, so the shape survives: `user:?:profile`.

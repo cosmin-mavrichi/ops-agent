@@ -16,20 +16,22 @@ const FALLBACK_NOTE =
   "The previous container was already deleted by kubelet, so these are the current container's logs. For a " +
   "crash loop that has just exited, they hold the same last words.";
 
-type ContainerRead = { readonly text: string; readonly readFrom: "previous" | "current" };
+type Container = "previous" | "current";
+type ContainerRead = { readonly text: string; readonly readFrom: Container };
 
 /**
  * kubelet keeps one dead container per pod. Once a crash-looping container has exited, the one before it
  * is already deleted (previous=true fails), and the last words are in the current, exited container.
  */
-async function readLogs(read: (fromPrevious: boolean) => Promise<string>, previous: boolean): Promise<ContainerRead> {
-  const requested = await read(previous);
-  if (!previous || !isUnavailable(requested)) return { text: requested, readFrom: previous ? "previous" : "current" };
+async function readLogs(read: (container: Container) => Promise<string>, wanted: Container): Promise<ContainerRead> {
+  const requested = await read(wanted);
+  if (wanted === "current" || !isUnavailable(requested)) return { text: requested, readFrom: wanted };
 
   // A current container that is still waiting to start answers with an error; then the original
   // "unavailable" stands, and the caller explains it.
-  const current = await read(false).catch(() => requested);
-  return isUnavailable(current) ? { text: requested, readFrom: "previous" } : { text: current, readFrom: "current" };
+  const current = await read("current").catch(() => requested);
+  if (isUnavailable(current)) return { text: requested, readFrom: "previous" };
+  return { text: current, readFrom: "current" };
 }
 
 const clipLine = (line: string) => (line.length > MAX_LINE ? `${line.slice(0, MAX_LINE)}…` : line);
@@ -59,9 +61,9 @@ export const k8sLogs = defineTool({
     assertNamespaceAllowed(k8s, namespace);
     const path = `${nsPath(namespace)}/pods/${encodeURIComponent(pod)}/log`;
     const query = { container, tailLines: tail_lines, sinceSeconds: since_s, limitBytes: MAX_BYTES, timestamps: true };
-    const read = (fromPrevious: boolean) => k8s.getText(path, signal, { ...query, previous: fromPrevious });
+    const read = (from: Container) => k8s.getText(path, signal, { ...query, previous: from === "previous" });
 
-    const { text, readFrom } = await readLogs(read, previous);
+    const { text, readFrom } = await readLogs(read, previous ? "previous" : "current");
     if (isUnavailable(text)) {
       throw new ToolError(
         "logs_unavailable",

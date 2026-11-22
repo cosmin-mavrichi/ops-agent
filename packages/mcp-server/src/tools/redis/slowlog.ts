@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineTool, Level } from "../../types.js";
-import { maskKey } from "./shared.js";
+import { maskKey, oneDecimal, secondsSince } from "./shared.js";
 
 const MAX_LISTED = 25;
 
@@ -11,6 +11,7 @@ const CONTAINER_COMMANDS = new Set(["ACL", "CLIENT", "CLUSTER", "CONFIG", "FUNCT
 const SlowlogReply = z.array(
   z.tuple([z.number(), z.number(), z.number(), z.array(z.string()), z.string(), z.string()]).rest(z.unknown()),
 );
+type SlowlogEntry = z.infer<typeof SlowlogReply>[number];
 
 export interface SlowCommand {
   readonly command: string;
@@ -21,40 +22,60 @@ export interface SlowCommand {
   readonly client_name: string | null;
 }
 
+interface CommandTotal {
+  readonly command: string;
+  readonly count: number;
+  readonly total_ms: number;
+  readonly max_ms: number;
+}
+
+/** `["config", "set", "maxmemory", …]` → `CONFIG SET` and its key `maxmemory`. */
+function commandAndKey(words: readonly string[]): { command: string; key: string | undefined } {
+  const name = (words[0] ?? "?").toUpperCase();
+  const subcommand = CONTAINER_COMMANDS.has(name) ? words[1] : undefined;
+  if (subcommand === undefined) return { command: name, key: words[1] };
+  return { command: `${name} ${subcommand.toUpperCase()}`, key: words[2] };
+}
+
+function toSlowCommand(entry: SlowlogEntry, now: Date): SlowCommand {
+  const [_id, unixTime, durationUs, words, _clientAddress, clientName] = entry;
+  const { command, key } = commandAndKey(words);
+  const keyShape = key === undefined ? null : maskKey(key);
+  return {
+    command,
+    key_shape: keyShape,
+    arg_count: words.length - 1,
+    duration_ms: oneDecimal(durationUs / 1000),
+    ago_s: secondsSince(unixTime, now),
+    client_name: clientName || null,
+  };
+}
+
 /**
  * Arguments are never returned: they hold values (SET payloads, Lua scripts) and key names with user
  * data. Only the command, the masked shape of its key and the argument count are kept.
  */
 export function parseSlowlog(reply: unknown, now: Date): SlowCommand[] {
-  return SlowlogReply.parse(reply).map(([_id, unixTime, durationUs, words, _clientAddress, clientName]) => {
-    const name = (words[0] ?? "?").toUpperCase();
-    const hasSubcommand = CONTAINER_COMMANDS.has(name) && words.length > 1;
-    const command = hasSubcommand ? `${name} ${(words[1] ?? "").toUpperCase()}` : name;
-    const key = hasSubcommand ? words[2] : words[1];
-    return {
-      command,
-      key_shape: key === undefined ? null : maskKey(key),
-      arg_count: words.length - 1,
-      duration_ms: Math.round(durationUs / 100) / 10,
-      ago_s: Math.max(0, Math.round(now.getTime() / 1000 - unixTime)),
-      client_name: clientName || null,
-    };
-  });
+  return SlowlogReply.parse(reply).map((entry) => toSlowCommand(entry, now));
 }
 
+function addToTotal(total: CommandTotal | undefined, entry: SlowCommand): CommandTotal {
+  const previous = total ?? { command: entry.command, count: 0, total_ms: 0, max_ms: 0 };
+  return {
+    command: entry.command,
+    count: previous.count + 1,
+    total_ms: oneDecimal(previous.total_ms + entry.duration_ms),
+    max_ms: Math.max(previous.max_ms, entry.duration_ms),
+  };
+}
+
+const costliestFirst = (a: CommandTotal, b: CommandTotal) => b.total_ms - a.total_ms;
+
 /** Totals per command, costliest first: one KEYS call can matter more than a hundred slow GETs. */
-export function byCommand(entries: readonly SlowCommand[]) {
-  const totals = new Map<string, { command: string; count: number; total_ms: number; max_ms: number }>();
-  for (const { command, duration_ms } of entries) {
-    const total = totals.get(command) ?? { command, count: 0, total_ms: 0, max_ms: 0 };
-    totals.set(command, {
-      command,
-      count: total.count + 1,
-      total_ms: Math.round((total.total_ms + duration_ms) * 10) / 10,
-      max_ms: Math.max(total.max_ms, duration_ms),
-    });
-  }
-  return [...totals.values()].toSorted((a, b) => b.total_ms - a.total_ms);
+export function byCommand(entries: readonly SlowCommand[]): CommandTotal[] {
+  const totals = new Map<string, CommandTotal>();
+  for (const entry of entries) totals.set(entry.command, addToTotal(totals.get(entry.command), entry));
+  return [...totals.values()].toSorted(costliestFirst);
 }
 
 export const redisSlowlog = defineTool({

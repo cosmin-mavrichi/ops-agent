@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Lab, Scenario, ToolResult } from "./scenario.js";
 import { startLab } from "./scenario.js";
 import { crashLoop } from "./scenarios/k8s/crash-loop.js";
+import { expiringCertificate } from "./scenarios/k8s/expiring-certificate.js";
 import { lockContention } from "./scenarios/postgres/lock-contention.js";
 import { cacheFull } from "./scenarios/redis/cache-full.js";
 import { slowKeys } from "./scenarios/redis/slow-keys.js";
@@ -16,6 +17,7 @@ import { promptInjection } from "./scenarios/security/prompt-injection.js";
 
 const scenarios: readonly Scenario[] = [
   crashLoop,
+  expiringCertificate,
   lockContention,
   cacheFull,
   slowKeys,

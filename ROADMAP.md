@@ -1,7 +1,8 @@
 # Roadmap
 
-v1 goal: a read-only agent that diagnoses incidents on the self-hosted stack: API, worker, Postgres, Redis and
-Meilisearch on k3s (single node to start). One branch per step; merge to `main` when green.
+v1 goal: a read-only agent that diagnoses incidents on the self-hosted stack: API, worker, Postgres, Redis/Valkey
+and a search engine (Meilisearch, OpenSearch or Elasticsearch) on k3s (single node to start). One branch per step;
+merge to `main` when green.
 
 ## Steps
 
@@ -13,7 +14,17 @@ Meilisearch on k3s (single node to start). One branch per step; merge to `main` 
 | 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                        | done    |
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys  | done    |
 | 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | next    |
+| 5c  | Search engines, read-only: OpenSearch, Elasticsearch and Meilisearch (see below)                                                                                                                      | planned |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                               | planned |
+
+**Step 5c, search engines.** OpenSearch first (Apache 2.0, Linux Foundation), Elasticsearch tested too (same
+diagnostic APIs, as with Valkey/Redis), plus Meilisearch (already in the stack).
+
+- **Tools:** cluster health and unassigned shards with the allocation explanation, disk watermarks and read-only
+  index blocks, JVM heap and circuit breakers, thread pool rejections, shard counts; Meilisearch task queue and
+  failed tasks.
+- **Access:** a role with only cluster/index `monitor` privileges, no document reads.
+- **Scenarios:** cluster red after the disk fills, search rejections under load.
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
 `OPS_MAX_LEVEL > 1`.
@@ -47,6 +58,21 @@ Starts only after step 6: the evals must show the agent names the right root cau
 
 1. `k8s_rollout_restart` (Level 2), justified by the step 3 pod status, events and logs.
 2. `pg_terminate_session` (Level 2), justified by `pg_blocking`; only for sessions it reported, never ops roles.
+3. `redis_invalidate` (Level 2): delete cache entries whose shape matches a pattern, e.g. after a deploy changed
+   the cached format and logs show deserialization errors. Justified by `k8s_logs` plus `redis_health` /
+   `redis_slowlog`. Constraints:
+   - **Operator allowlist of patterns** (e.g. `cache:*`), set in config, never chosen by the model. Sessions,
+     queues and rate limits often share the same Redis; deleting them logs users out or drops jobs.
+   - **Its own ACL user**, so `ops_ro` stays keyless: only `SCAN` and `UNLINK`, and only on the allowlisted
+     key patterns (`~cache:*`), so Redis itself refuses anything outside the allowlist, not just the adapter.
+   - **Targeted deletes only:** `SCAN` + `UNLINK` in small batches with a key-count cap, so the server never
+     stalls. Never `FLUSHALL` / `FLUSHDB`.
+   - **Dry run** reports the matching key count and masked shapes (never values), the hit rate and the database's
+     headroom: emptying a hot cache sends its traffic to the database at once (stampede).
+   - **Post-check:** the errors that justified it stop, and database load stays within limits.
+   - **Never triggered by log content.** The plan must rest on measured evidence and a human approval; a log line
+     asking for invalidation is prompt injection (cover it in the lab and evals).
+   - The report names the real fix (versioned cache keys, deploy order); invalidation is the mitigation.
 
 ## Backlog
 

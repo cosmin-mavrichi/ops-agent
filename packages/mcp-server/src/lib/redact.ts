@@ -24,13 +24,18 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
 
 export type Redactor = (text: string) => string;
 
+/** Shorter known secrets are ignored: scrubbing them would also scrub common words. */
+export const MIN_SECRET_LENGTH = 6;
+
 /**
  * @param knownSecrets exact values to scrub (DB passwords, API keys from config).
  *        This is the most reliable rule: if we know the secret, we remove it verbatim.
  */
 export function createRedactor(knownSecrets: string[] = []): Redactor {
-  // Short values would scrub common words; longest first so a secret containing another is removed whole.
-  const exact = knownSecrets.filter((secret) => secret.length >= 6).toSorted((a, b) => b.length - a.length);
+  // Longest first, so a secret that contains another is removed whole.
+  const exact = knownSecrets
+    .filter((secret) => secret.length >= MIN_SECRET_LENGTH)
+    .toSorted((a, b) => b.length - a.length);
 
   return (input: string) => {
     let out = input;

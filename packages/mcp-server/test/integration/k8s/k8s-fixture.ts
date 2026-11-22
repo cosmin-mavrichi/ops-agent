@@ -1,4 +1,7 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { K3sContainer, type StartedK3sContainer } from "@testcontainers/k3s";
 import { createK8sClient, type K8sConfig } from "../../../src/adapters/k8s.js";
 import type { K8sClient } from "../../../src/types.js";
@@ -17,6 +20,8 @@ export interface K3sFixture {
   apply(yaml: string): Promise<void>;
   /** Polls a jsonpath on an object until `done` accepts the value. */
   waitFor(resource: string, jsonpath: string, done: (value: string) => boolean, timeoutMs?: number): Promise<void>;
+  /** Copies a directory out of a running pod into a new local temp dir, symlinks included. */
+  copyFromPod(namespace: string, pod: string, path: string): Promise<string>;
   stop(): Promise<void>;
 }
 
@@ -70,6 +75,13 @@ export async function startK3s(): Promise<K3sFixture> {
       }
       const described = await kubectl("describe", resource, "-n", "app").catch((e) => String(e));
       throw new Error(`timed out waiting for ${resource} ${jsonpath}; last value: ${last}\n${described}`);
+    },
+    async copyFromPod(namespace, pod, path) {
+      // base64, because kubectl's output arrives as text and a tar archive is binary.
+      const archive = await kubectl("exec", "-n", namespace, pod, "--", "sh", "-c", `tar -C ${path} -cf - . | base64`);
+      const dir = mkdtempSync(join(tmpdir(), "pod-copy-"));
+      execFileSync("tar", ["-x", "-C", dir], { input: Buffer.from(archive, "base64") });
+      return dir;
     },
     stop: () => container.stop().then(() => undefined),
   };

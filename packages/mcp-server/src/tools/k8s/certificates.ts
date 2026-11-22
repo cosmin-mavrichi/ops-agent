@@ -1,20 +1,22 @@
 import { z } from "zod";
-import { defineTool, Level, ToolError } from "../../types.js";
-import { allowedNamespaces, clip, k8sLabel } from "./shared.js";
+import { defineTool, Level } from "../../types.js";
+import {
+  allowedNamespaces,
+  type Condition,
+  clip,
+  conditionOf,
+  customResourcePath,
+  DAY_S,
+  describeSpan,
+  k8sLabel,
+  toDays,
+  whenNotInstalled,
+} from "./shared.js";
 
 const EXPIRY_WARNING_DAYS = 14;
 // cert-manager retries failed issuance with backoff; this long past renewalTime, renewal is failing, not slow.
 const RENEWAL_GRACE_S = 60 * 60;
 const MAX_DNS_NAMES = 5;
-const HOUR_S = 3_600;
-const DAY_S = 24 * HOUR_S;
-
-interface Condition {
-  readonly type?: string;
-  readonly status?: string;
-  readonly reason?: string;
-  readonly message?: string;
-}
 
 /**
  * Only the fields the tool reads. The issued private key lives in the Secret `spec.secretName`, which the
@@ -63,18 +65,9 @@ export interface CertificateSummary {
   readonly problems: readonly string[];
 }
 
-const readyCondition = (conditions: readonly Condition[] | undefined) =>
-  conditions?.find((condition) => condition.type === "Ready");
-
 const issuerKey = (namespace: string, name: string | undefined) => `${namespace}/${name}`;
 
 const secondsUntil = (iso: string, now: Date) => (Date.parse(iso) - now.getTime()) / 1000;
-
-const toDays = (seconds: number) => Math.round((seconds / DAY_S) * 10) / 10;
-const toHours = (seconds: number) => Math.round((seconds / HOUR_S) * 10) / 10;
-
-/** Under a day in hours: a certificate with an hour left is not "0 days" from expiry. */
-const describeSpan = (seconds: number) => (seconds >= DAY_S ? `${toDays(seconds)} days` : `${toHours(seconds)} hours`);
 
 function issuerState(cert: Certificate, issuers: ReadonlyMap<string, Issuer>): IssuerState {
   const kind = cert.spec?.issuerRef?.kind ?? "Issuer";
@@ -84,7 +77,7 @@ function issuerState(cert: Certificate, issuers: ReadonlyMap<string, Issuer>): I
 
   const issuer = issuers.get(issuerKey(cert.metadata?.namespace ?? "", name));
   if (issuer === undefined) return { ref, ready: false, message: "the issuer does not exist" };
-  const ready = readyCondition(issuer.status?.conditions);
+  const ready = conditionOf(issuer.status?.conditions, "Ready");
   return { ref, ready: ready?.status === "True", message: clip(ready?.message) ?? null };
 }
 
@@ -124,7 +117,7 @@ export function summarizeCertificate(
   issuers: ReadonlyMap<string, Issuer>,
   now: Date,
 ): CertificateSummary {
-  const ready = readyCondition(cert.status?.conditions);
+  const ready = conditionOf(cert.status?.conditions, "Ready");
   const notAfter = cert.status?.notAfter;
   const secondsLeft = notAfter ? secondsUntil(notAfter, now) : null;
   const overdueS = renewalOverdue(cert.status?.renewalTime, now);
@@ -161,8 +154,7 @@ export function summarizeCertificates(certs: readonly Certificate[], issuers: re
   return summaries.toSorted(mostProblemsThenSoonestExpiry);
 }
 
-const certManagerPath = (namespace: string) => `/apis/cert-manager.io/v1/namespaces/${encodeURIComponent(namespace)}`;
-
+const CERT_MANAGER_API = "cert-manager.io/v1";
 const NOT_INSTALLED =
   "cert-manager is not installed in this cluster (there is no cert-manager.io/v1 API), so there are no " +
   "Certificates to inspect. TLS certificates managed another way are not visible to this tool.";
@@ -185,17 +177,13 @@ export const k8sCertificates = defineTool({
   timeoutMs: 8_000,
 
   async run({ namespace, limit }, { k8s, signal }) {
-    const list = <T>(ns: string, kind: "certificates" | "issuers") =>
-      k8s.getJson<{ items: T[] }>(`${certManagerPath(ns)}/${kind}`, signal).then((reply) => reply.items);
+    const list = <T>(ns: string, plural: "certificates" | "issuers") =>
+      k8s.getJson<{ items: T[] }>(customResourcePath(CERT_MANAGER_API, ns, plural), signal).then((r) => r.items);
     const listNamespace = (ns: string) =>
       Promise.all([list<Certificate>(ns, "certificates"), list<Issuer>(ns, "issuers")]);
 
-    const perNamespace = await Promise.all(allowedNamespaces(k8s, namespace).map(listNamespace)).catch(
-      (err: unknown) => {
-        if (err instanceof ToolError && err.code === "not_found") throw new ToolError("unavailable", NOT_INSTALLED);
-        throw err;
-      },
-    );
+    const namespaces = allowedNamespaces(k8s, namespace);
+    const perNamespace = await Promise.all(namespaces.map(listNamespace)).catch(whenNotInstalled(NOT_INSTALLED));
 
     const certs = perNamespace.flatMap(([namespaceCerts]) => namespaceCerts);
     const issuers = perNamespace.flatMap(([, namespaceIssuers]) => namespaceIssuers);

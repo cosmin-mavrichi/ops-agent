@@ -21,7 +21,9 @@ merge to `main` when green.
 
 - **Certificates:** `k8s_certificates` (cert-manager Certificates and namespaced Issuers: readiness, expiry,
   overdue renewal); lab scenario expiring-certificate. Done.
-- **Backups:** CloudNativePG backup status and freshness; scenario stale backup.
+- **Backups:** `k8s_pg_backups` (CloudNativePG: last successful backup, failures since, schedules, WAL
+  archiving), read from Backup objects because the cluster's `lastSuccessfulBackup` is unset with backup
+  plugins; lab scenario failing-backups. Done.
 - **Disk/PVC usage:** a read-only Prometheus adapter (`kubelet_volume_stats_*`); scenario volume at 95%.
 - **Queue backlog:** Postgres job queues first (pending count, oldest job's age, failures, with fixed SQL per
   library: pg-boss, Graphile Worker); which library to support first is still open. Scenario paused worker.
@@ -100,6 +102,11 @@ Smaller items, not tied to a step. Move into a step when picked up.
   (image digests, `pod-template-hash`, UUIDs, request ids), so a separate PR.
 - **Encoded known secrets.** Exact matching misses a known secret that appears base64- or URL-encoded in output;
   redact those forms too.
+- **`k8s_logs` loses the newest lines on overflow.** Output over the limit is truncated at the end, which is
+  where the newest lines are, and the cut JSON no longer parses. CloudNativePG's JSON log lines overflow at
+  about 40 lines. Keep the newest lines that fit instead, and say how many were dropped.
+- **Stuck backups.** A backup to an unreachable object store stays `running` for a long time instead of
+  failing; `k8s_pg_backups` could flag one running far longer than usual.
 - **Dependency policy cleanup.** Drop the `minimumReleaseAgeExclude` entries for vitest 5.1.1 once it is older than
   7 days.
 

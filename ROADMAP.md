@@ -13,9 +13,18 @@ merge to `main` when green.
 | 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                   | done    |
 | 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                        | done    |
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys  | done    |
-| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | next    |
+| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | doing   |
 | 5c  | Search engines, read-only: OpenSearch, Elasticsearch and Meilisearch (see below)                                                                                                                      | planned |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                               | planned |
+
+**Step 5b, one PR per area:**
+
+- **Certificates:** `k8s_certificates` (cert-manager Certificates and namespaced Issuers: readiness, expiry,
+  overdue renewal); lab scenario expiring-certificate. Done.
+- **Backups:** CloudNativePG backup status and freshness; scenario stale backup.
+- **Disk/PVC usage:** a read-only Prometheus adapter (`kubelet_volume_stats_*`); scenario volume at 95%.
+- **Queue backlog:** Postgres job queues first (pending count, oldest job's age, failures, with fixed SQL per
+  library: pg-boss, Graphile Worker); which library to support first is still open. Scenario paused worker.
 
 **Step 5c, search engines.** OpenSearch first (Apache 2.0, Linux Foundation), Elasticsearch tested too (same
 diagnostic APIs, as with Valkey/Redis), plus Meilisearch (already in the stack).
@@ -95,6 +104,15 @@ Smaller items, not tied to a step. Move into a step when picked up.
   7 days.
 
 ## Decisions
+
+- **Disk usage from Prometheus, not the kubelet** (2026-11-22). Volume usage is only exposed by the kubelet, and
+  reading it needs `nodes/proxy`, which can also be used to exec into pods. A Prometheus-compatible query API
+  (Prometheus, VictoriaMetrics, Mimir, Thanos) gives `kubelet_volume_stats_*` with no dangerous RBAC.
+- **Job queues: Postgres first, Redis later** (2026-11-22). Backlog for Redis-based queues (BullMQ) means reading
+  queue keys, which the keyless `ops_ro` ACL user deliberately cannot; add it only when an app needs it, with a
+  narrow key pattern.
+- **cert-manager: namespaced Issuers only** (2026-11-22). ClusterIssuers are cluster-scoped and would need a
+  ClusterRole; `k8s_certificates` reports them as not inspected instead.
 
 - **Valkey first, Redis too** (2026-11-20). New self-hosted setups mostly pick Valkey (BSD, Linux Foundation, the
   Fedora/managed-cloud default); Redis 8 is AGPL again and still common. The diagnostic commands are identical, so one

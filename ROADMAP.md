@@ -1,7 +1,7 @@
 # Roadmap
 
 v1 goal: a read-only agent that diagnoses incidents on the self-hosted stack: API, worker, Postgres, Redis/Valkey
-and a search engine (Meilisearch, OpenSearch or Elasticsearch) on k3s (single node to start). One branch per step;
+and a search engine (OpenSearch or Elasticsearch) on k3s (single node to start). One branch per step;
 merge to `main` when green.
 
 ## Steps
@@ -14,7 +14,7 @@ merge to `main` when green.
 | 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                        | done    |
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys  | done    |
 | 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | done    |
-| 5c  | Search engines, read-only: OpenSearch, Elasticsearch and Meilisearch (see below)                                                                                                                      | doing   |
+| 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                   | done    |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                               | planned |
 
 **Step 5b, one PR per area:**
@@ -32,14 +32,15 @@ merge to `main` when green.
   scenario paused-worker. Done.
 
 **Step 5c, search engines.** OpenSearch first (Apache 2.0, Linux Foundation), Elasticsearch tested too (same
-diagnostic APIs, as with Valkey/Redis), plus Meilisearch (already in the stack).
+diagnostic APIs, as with Valkey/Redis).
 
 - **Access:** a role with only cluster/index `monitor` privileges, no document reads (`deploy/search/`).
 - **Cluster health:** `search_cluster_health` (status, shard counts, allocation explanation for an unassigned
   shard, disk per node against the watermarks, read-only index blocks); lab scenario search-disk-full (flood
   stage makes the index read-only, the indexer's writes fail). Done.
-- **Node pressure:** JVM heap, circuit breakers, thread pool rejections; scenario search rejections under load.
-- **Meilisearch:** task queue and failed tasks.
+- **Node pressure:** `search_node_pressure` (JVM heap, old-generation GC time, thread pool queues and rejections,
+  tripped circuit breakers), sampled twice a few seconds apart because the counters are cumulative since node
+  start; lab scenario search-rejections (an undersized node rejects the storefront's searches). Done.
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
 `OPS_MAX_LEVEL > 1`.

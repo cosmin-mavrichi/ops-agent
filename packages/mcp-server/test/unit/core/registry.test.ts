@@ -73,6 +73,7 @@ describe("level gating", () => {
         "redis_health",
         "redis_slowlog",
         "search_cluster_health",
+        "search_node_pressure",
       ]
     `);
     expect(allTools.every((t) => t.level === Level.Read)).toBe(true);

@@ -77,8 +77,10 @@ export async function startK3s(): Promise<K3sFixture> {
       throw new Error(`timed out waiting for ${resource} ${jsonpath}; last value: ${last}\n${described}`);
     },
     async copyFromPod(namespace, pod, path) {
-      // base64, because kubectl's output arrives as text and a tar archive is binary.
-      const archive = await kubectl("exec", "-n", namespace, pod, "--", "sh", "-c", `tar -C ${path} -cf - . | base64`);
+      // base64, because kubectl's output arrives as text and a tar archive is binary. The path is passed as
+      // $1, not spliced into the script, so the shell never parses it.
+      const script = 'tar -C "$1" -cf - . | base64';
+      const archive = await kubectl("exec", "-n", namespace, pod, "--", "sh", "-c", script, "sh", path);
       const dir = mkdtempSync(join(tmpdir(), "pod-copy-"));
       execFileSync("tar", ["-x", "-C", dir], { input: Buffer.from(archive, "base64") });
       return dir;

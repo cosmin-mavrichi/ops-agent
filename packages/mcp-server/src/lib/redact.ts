@@ -32,10 +32,9 @@ export const MIN_SECRET_LENGTH = 6;
  *        This is the most reliable rule: if we know the secret, we remove it verbatim.
  */
 export function createRedactor(knownSecrets: string[] = []): Redactor {
-  // Longest first, so a secret that contains another is removed whole.
-  const exact = knownSecrets
-    .filter((secret) => secret.length >= MIN_SECRET_LENGTH)
-    .toSorted((a, b) => b.length - a.length);
+  // So a secret that contains another is removed whole.
+  const longestFirst = (a: string, b: string) => b.length - a.length;
+  const exact = knownSecrets.filter((secret) => secret.length >= MIN_SECRET_LENGTH).toSorted(longestFirst);
 
   return (input: string) => {
     let out = input;

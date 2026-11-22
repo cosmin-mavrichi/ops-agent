@@ -77,6 +77,11 @@ export async function startLab(mountedSecrets: Readonly<Record<string, string>> 
   };
 }
 
+// Each name appears in several manifest fields that must agree; a mismatch only shows as a 150s wait timeout.
+const OPS_NAMESPACE = "ops";
+const SECRET_NAME = "ops-known-secrets";
+const AGENT_POD = "ops-agent";
+const VOLUME_NAME = "known-secrets";
 const MOUNT_PATH = "/var/run/secrets/ops-known";
 
 /**
@@ -89,13 +94,13 @@ async function readMountedSecrets(k3s: K3sFixture, secrets: Readonly<Record<stri
   const secret = {
     apiVersion: "v1",
     kind: "Secret",
-    metadata: { name: "ops-known-secrets", namespace: "ops" },
+    metadata: { name: SECRET_NAME, namespace: OPS_NAMESPACE },
     stringData: secrets,
   };
   const pod = {
     apiVersion: "v1",
     kind: "Pod",
-    metadata: { name: "ops-agent", namespace: "ops" },
+    metadata: { name: AGENT_POD, namespace: OPS_NAMESPACE },
     spec: {
       serviceAccountName: "ops-ro",
       containers: [
@@ -103,17 +108,17 @@ async function readMountedSecrets(k3s: K3sFixture, secrets: Readonly<Record<stri
           name: "agent",
           image: "busybox:1.37",
           command: ["sleep", "3600"],
-          volumeMounts: [{ name: "known-secrets", mountPath: MOUNT_PATH, readOnly: true }],
+          volumeMounts: [{ name: VOLUME_NAME, mountPath: MOUNT_PATH, readOnly: true }],
         },
       ],
-      volumes: [{ name: "known-secrets", secret: { secretName: "ops-known-secrets" } }],
+      volumes: [{ name: VOLUME_NAME, secret: { secretName: SECRET_NAME } }],
     },
   };
   // JSON is valid YAML, and it quotes the values safely.
   await k3s.apply([secret, pod].map((manifest) => JSON.stringify(manifest)).join("\n---\n"));
-  await k3s.kubectl("wait", "--for=condition=Ready", "pod/ops-agent", "-n", "ops", "--timeout=150s");
+  await k3s.kubectl("wait", "--for=condition=Ready", `pod/${AGENT_POD}`, "-n", OPS_NAMESPACE, "--timeout=150s");
 
-  const dir = await k3s.copyFromPod("ops", "ops-agent", MOUNT_PATH);
+  const dir = await k3s.copyFromPod(OPS_NAMESPACE, AGENT_POD, MOUNT_PATH);
   try {
     return readSecretsDir(dir, (message) => {
       throw new Error(`scenario secret unusable: ${message}`);

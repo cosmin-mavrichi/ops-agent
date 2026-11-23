@@ -65,9 +65,11 @@ describe("summarizeCertificates", () => {
     });
     expect(first?.problems).toEqual([
       "expires in 1 day",
-      "not Ready (DoesNotMatch): Issuing certificate as Secret is not up to date",
+      "not Ready (DoesNotMatch): Issuing certificate as Secret is not up to date; it cannot be issued until its " +
+        "issuer Issuer/internal-ca is Ready",
       "renewal was due 3 days ago and has not happened",
-      'its issuer Issuer/internal-ca is not Ready: Error getting keypair for CA issuer: secret "ca-key" not found',
+      "its issuer Issuer/internal-ca is not Ready, which blocks issuing and renewing it: " +
+        'Error getting keypair for CA issuer: secret "ca-key" not found',
     ]);
   });
 
@@ -82,7 +84,7 @@ describe("summarizeCertificates", () => {
     const [summary] = summarizeCertificates([expired], [], NOW);
     expect(summary?.problems).toEqual([
       "expired 2 days ago",
-      "its issuer Issuer/internal-ca is not Ready: the issuer does not exist",
+      "its issuer Issuer/internal-ca is not Ready, which blocks issuing and renewing it: the issuer does not exist",
     ]);
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byCommand, parseSlowlog, redisSlowlog } from "../../../src/tools/redis/slowlog.js";
+import { byCommand, parseSlowlog, problemsOf, redisSlowlog } from "../../../src/tools/redis/slowlog.js";
 import { useHarness } from "../../harness.js";
 import { fakeRedis, NOW, unixAgo } from "./fake-redis.js";
 
@@ -50,6 +50,21 @@ describe("byCommand", () => {
       total_ms: 78.3,
       max_ms: 48.3,
     });
+  });
+});
+
+describe("problemsOf", () => {
+  it("spells out whole-collection reads with their clients and replacement, and nothing else", () => {
+    const entries = parseSlowlog(
+      [...SLOWLOG, [8, unixAgo(100), 4_400, ["HGETALL", "report:2026"], "10.42.0.7:40000", "reports"]],
+      NOW,
+    );
+    expect(problemsOf(byCommand(entries), entries)).toEqual([
+      "KEYS from checkout (2 slow calls, up to 48.3 ms) reads the whole keyspace in one call: every other client " +
+        "waits while it runs, and it gets slower as the data grows. Use SCAN instead.",
+      "HGETALL from reports (1 slow call, up to 4.4 ms) reads the whole hash in one call: every other client " +
+        "waits while it runs, and it gets slower as the data grows. Use HSCAN instead.",
+    ]);
   });
 });
 

@@ -78,6 +78,40 @@ export function byCommand(entries: readonly SlowCommand[]): CommandTotal[] {
   return [...totals.values()].toSorted(costliestFirst);
 }
 
+interface WholeRead {
+  readonly reads: string;
+  readonly instead: string;
+}
+
+/** Commands that read a whole keyspace or collection in one call, and the incremental command to use instead. */
+const WHOLE_READS: Readonly<Partial<Record<string, WholeRead>>> = {
+  KEYS: { reads: "keyspace", instead: "SCAN" },
+  HGETALL: { reads: "hash", instead: "HSCAN" },
+  SMEMBERS: { reads: "set", instead: "SSCAN" },
+};
+
+const clientsOf = (command: string, entries: readonly SlowCommand[]) => {
+  const names = entries.filter((entry) => entry.command === command).map((entry) => entry.client_name ?? "unnamed");
+  return [...new Set(names)].join(", ");
+};
+
+/**
+ * Milliseconds look harmless, so the model tends to dismiss them; spelled out, a whole-collection read is the
+ * textbook cause of stalls that hit every client at once.
+ */
+export function problemsOf(totals: readonly CommandTotal[], entries: readonly SlowCommand[]): string[] {
+  return totals.flatMap(({ command, count, max_ms }) => {
+    const whole = WHOLE_READS[command];
+    if (whole === undefined) return [];
+    const calls = count === 1 ? "1 slow call" : `${count} slow calls`;
+    return [
+      `${command} from ${clientsOf(command, entries)} (${calls}, up to ${max_ms} ms) reads the whole ` +
+        `${whole.reads} in one call: every other client waits while it runs, and it gets slower as the data ` +
+        `grows. Use ${whole.instead} instead.`,
+    ];
+  });
+}
+
 export const redisSlowlog = defineTool({
   name: "redis_slowlog",
   level: Level.Read,
@@ -87,7 +121,8 @@ export const redisSlowlog = defineTool({
     "Recent commands the server (Redis or Valkey) logged as slow, i.e. slower than " +
     "slowlog-log-slower-than (10ms by default), newest first, with totals per command. Commands run one at a " +
     "time, so one slow command (KEYS, a big HGETALL or SMEMBERS, a long Lua script) delays every other " +
-    "client. Key names are masked to their shape (`session:?`) and arguments are never returned. Use when " +
+    "client; `problems` names the whole-keyspace or whole-collection reads and their incremental replacement. " +
+    "Key names are masked to their shape (`session:?`) and arguments are never returned. Use when " +
     "latency spikes or clients time out.",
   input: {
     limit: z.number().int().min(1).max(128).default(50),
@@ -100,9 +135,11 @@ export const redisSlowlog = defineTool({
       redis.send(["SLOWLOG", "LEN"], signal),
     ]);
     const entries = parseSlowlog(reply, new Date());
+    const totals = byCommand(entries);
     return {
       logged_total: Number(total),
-      by_command: byCommand(entries),
+      problems: problemsOf(totals, entries),
+      by_command: totals,
       entries: entries.slice(0, MAX_LISTED),
     };
   },

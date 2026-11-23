@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stripLiterals } from "../../lib/sql-text.js";
 import { defineTool, Level, ToolError } from "../../types.js";
 
 /** Whitelisted sort columns. User input selects a key; it is never interpolated. */
@@ -9,6 +10,18 @@ const ORDER_BY = {
 } as const;
 
 const MAX_QUERY_TEXT = 1_500;
+const SHOWN_QUERY_TEXT = 300;
+
+/**
+ * Statement text as the model sees it. pg_stat_statements normalizes literals in ordinary statements but keeps
+ * utility statements (ALTER ROLE ... PASSWORD '...') and comments verbatim, and comments are free text that can
+ * carry instructions aimed at the model: stripLiterals drops both. The start of a statement identifies it, so
+ * the rest is clipped, which cannot cut a secret in half once no literal is left.
+ */
+export function shownQueryText(query: string): string {
+  const flat = stripLiterals(query).replace(/\s+/g, " ").trim();
+  return flat.length > SHOWN_QUERY_TEXT ? `${flat.slice(0, SHOWN_QUERY_TEXT)}…` : flat;
+}
 
 /** Numeric columns come back as text so bigints survive; they are converted here. */
 interface StatementRow extends Record<string, unknown> {
@@ -28,7 +41,7 @@ function toStatement(row: StatementRow) {
   const rowsPerCall = calls > 0 ? Number(row.rows) / calls : 0;
   return {
     queryid: row.queryid,
-    query: row.query,
+    query: shownQueryText(row.query),
     calls,
     total_ms: Number(row.total_ms),
     mean_ms: Number(row.mean_ms),
@@ -45,8 +58,9 @@ export const pgSlowQueries = defineTool({
   requires: ["pg"],
   title: "Postgres: slowest queries",
   description:
-    "Top statements from pg_stat_statements for the application database, with literals already " +
-    "normalized to $1, $2… Use when latency is high, CPU is high, or a request times out. " +
+    "Top statements from pg_stat_statements for the application database: literals replaced ($1 or ?), " +
+    "comments removed, text cut to its first 300 characters. Use when latency is high, CPU is high, or a " +
+    "request times out. " +
     "`total_time` finds what costs the most overall; `mean_time` finds individually slow statements; " +
     "`calls` finds chatty N+1 patterns. Stats are cumulative since `stats_since`.",
   input: {

@@ -70,18 +70,22 @@ export function summarizeEvents(events: readonly K8sEvent[], now: Date, sinceMin
 
   const secondsAgo = (time: number) => Math.round((now.getTime() - time) / 1000);
 
-  return [...groups.values()]
-    .toSorted((a, b) => b.lastSeen - a.lastSeen)
-    .map(({ latest, count, firstSeen, lastSeen }) => ({
+  const toSummary = ({ latest, count, firstSeen, lastSeen }: EventGroup) => {
+    // An event seen once was first seen when it was last seen; saying so again only costs tokens.
+    const firstSeenField = count > 1 ? { first_seen_ago_s: secondsAgo(firstSeen) } : {};
+    return {
       type: latest.type,
       reason: latest.reason,
       object: `${latest.involvedObject?.kind}/${latest.involvedObject?.name}`,
       namespace: latest.involvedObject?.namespace ?? latest.metadata?.namespace,
       count,
       last_seen_ago_s: secondsAgo(lastSeen),
-      first_seen_ago_s: secondsAgo(firstSeen),
+      ...firstSeenField,
       message: clip(latest.message),
-    }));
+    };
+  };
+
+  return [...groups.values()].toSorted((a, b) => b.lastSeen - a.lastSeen).map(toSummary);
 }
 
 export const k8sEvents = defineTool({

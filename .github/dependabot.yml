@@ -1,4 +1,4 @@
-# Keeps the SHA-pinned actions in .github/workflows up to date. npm packages are governed by
+# Keeps the SHA-pinned actions in .github/workflows and the Dockerfile's base image up to date. npm packages are governed by
 # pnpm-workspace.yaml (minimumReleaseAge) instead.
 version: 2
 updates:
@@ -10,3 +10,12 @@ updates:
       default-days: 7
     commit-message:
       prefix: ci
+  # The Dockerfile's base image, pinned by digest.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: image

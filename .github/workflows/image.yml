@@ -1,0 +1,49 @@
+name: Image
+
+# Builds the image (watcher + read-only MCP server) on every pull request, and pushes it to GHCR on merges to main
+# as :main and :sha-<commit>. Deploying it: docs/deploy.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/cosmin-mavrichi/ops-agent
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: docker build --tag "$IMAGE:main" --tag "$IMAGE:sha-${GITHUB_SHA::7}" .
+      # The image, run as a pod with deploy/k8s/ops-watcher.yaml in k3s, must find a crash loop and write its report.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm i -g pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy the image to k3s and check it works
+        working-directory: packages/mcp-server
+        run: OPS_E2E_IMAGE="$IMAGE:main" pnpm exec vitest run test/integration/k8s/deploy-image
+      - name: Push
+        if: github.event_name == 'push'
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          docker push --all-tags "$IMAGE"

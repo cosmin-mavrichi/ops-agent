@@ -60,6 +60,9 @@ with the evals (turns, tokens, cost and diagnosis score per scenario), so saving
   gone for 3 checks, and caps investigations per hour and day. Reports are JSON lines on stderr and, optionally, in a
   file on a mounted volume; how to read both: `docs/watcher.md`. The agent loop moved from `eval/` into the watcher
   package, so the evals measure the loop that runs in production.
+  Deployment: `Dockerfile` (both packages, non-root, pinned base image), `deploy/k8s/ops-watcher.yaml` (one pod as
+  `ops-ro`, read-only root filesystem, report volume) and the Image workflow (builds every pull request, runs it as a
+  pod in k3s against a crash loop, pushes to GHCR on merges to main). Setup guide: `docs/deploy.md`.
 - **First-look bundles:** the code that starts an investigation gathers the evidence for that area in parallel
   (pod alert: pods, events, logs), so the model starts with it instead of exploring turn by turn.
   First PR: `ops_triage`, one call that runs every configured check in parallel and returns only the problems,
@@ -136,9 +139,6 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Error-rate and latency checks for the app.** `ops_triage` watches status, not logs, so an app that returns 500s
   or gets slow without crashing or failing a probe goes unnoticed. Add a triage check (code only, still free): error
   rate and latency from Prometheus when the app exposes HTTP metrics, or a count of ERROR lines in recent logs.
-- **Image and manifests for the server and watcher.** Nothing is deployed yet: a container image holding both
-  packages (the watcher starts the server as a child process) and a Deployment with the report volume, the
-  `ops-ro` ServiceAccount and the settings from a Secret.
 - **Watcher state across restarts.** Incidents live in memory, so a restart re-investigates every open problem once
   (bounded by the hourly cap). Persist the open incidents next to the report file if that turns out to cost money.
 

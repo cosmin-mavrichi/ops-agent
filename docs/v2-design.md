@@ -7,7 +7,7 @@ the first version (v2.0) and what comes right after it. The prerequisites it bui
 
 - **Approval in the MCP client first.** You run the agent from Claude Code (or any MCP client). Before a write tool
   acts, it stops and shows you a confirmation form: what it will do, why, and the evidence. Nothing runs without a
-  yes. The watcher, which runs unattended, only *proposes* actions in its reports in v2.0.
+  yes. The watcher, which runs unattended, only _proposes_ actions in its reports in v2.0.
 - **Out-of-band approval next (v2.1).** For simple fixes such as restarting a stuck pod: the watcher proposes, you
   approve later with a command or a link, and the action runs then. Sketched below; built after v2.0 works.
 - **First action: restart a deployment** (`k8s_rollout_restart`). The most common fix (crash loop, stuck pod),

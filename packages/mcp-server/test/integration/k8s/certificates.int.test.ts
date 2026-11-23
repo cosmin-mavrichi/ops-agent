@@ -57,7 +57,7 @@ afterAll(async () => {
 describe("k8s_certificates against k3s", () => {
   it("says cert-manager is not installed while its API does not exist", async () => {
     const res = await h.call("k8s_certificates");
-    expect(res.json).toMatchObject({ error: "unavailable" });
+    expect(res.json).toMatchObject({ error: "not_installed" });
     expect(res.json.message).toContain("cert-manager is not installed");
   });
 

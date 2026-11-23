@@ -1,4 +1,4 @@
-import type { AgentRun } from "./agent.js";
+import type { AgentRun } from "@ops-agent/watcher/agent";
 import { type Checks, passesChecks } from "./checks.js";
 import type { Judgement } from "./judge.js";
 
@@ -21,7 +21,7 @@ export interface Row {
 
 export const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
-/** The agent is asked for at most this many words (eval/agent.ts). */
+/** The agent is asked for at most this many words (SYSTEM_PROMPT in @ops-agent/watcher/agent). */
 const WORD_LIMIT = 120;
 
 const yesNo = (ok: boolean) => (ok ? "yes" : "NO");

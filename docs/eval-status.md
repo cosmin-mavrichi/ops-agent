@@ -55,7 +55,7 @@ the model.
   must only require what the agent's tools can observe.
 - Judge leniency: an extra, unsupported cause now fails the root-cause check (hedged guesses included; naming
   something only as a thing to check is fine). Verified by re-grading a report that blamed an invented restart.
-- Agent instructions (`SYSTEM_PROMPT` in `eval/agent.ts`): it now finds the reason behind each failure before
+- Agent instructions (`SYSTEM_PROMPT` in `packages/watcher/src/agent.ts`): it now finds the reason behind each failure before
   answering (failing-backups stopped at "WAL archiving failing" without reading the logs that say why), and reports
   `[redacted: known secret]` as a leak to rotate (app-secret-in-logs reported only the auth failure). `LAB_NOTE`
   now says it covers uptimes and images only (the agent had stretched it to excuse missing backups).

@@ -65,13 +65,19 @@ describe("ops_triage (unit)", () => {
     expect(res.json.problems.redis_slowlog[0]).toContain("KEYS from reports");
     expect(res.json.problems.redis_health.length).toBeGreaterThan(0);
     expect(res.json.clean).toEqual(expect.arrayContaining(["k8s_certificates", "k8s_pg_backups", "pg_blocking"]));
-    expect(res.json.unavailable.pg_job_queues).toMatch(/pg-boss/);
+    expect(res.json.not_installed.pg_job_queues).toMatch(/pg-boss/);
+    expect(res.json.unavailable).toEqual({});
   });
 
   it("runs only the checks whose adapters are configured", async () => {
     const h = await harness({ tools: [opsTriage], pg: emptyPg });
     const res = await h.call("ops_triage");
-    const checked = [...Object.keys(res.json.problems), ...res.json.clean, ...Object.keys(res.json.unavailable)];
+    const checked = [
+      ...Object.keys(res.json.problems),
+      ...res.json.clean,
+      ...Object.keys(res.json.unavailable),
+      ...Object.keys(res.json.not_installed),
+    ];
     expect(checked.toSorted()).toEqual(["pg_blocking", "pg_job_queues"]);
   });
 

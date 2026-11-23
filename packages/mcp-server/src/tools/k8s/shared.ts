@@ -59,7 +59,7 @@ export const customResourcePath = (groupVersion: string, namespace: string, plur
 /** A 404 on an operator's API means the operator is not installed; says that instead of "not found". */
 export function whenNotInstalled(message: string) {
   return (err: unknown): never => {
-    if (err instanceof ToolError && err.code === "not_found") throw new ToolError("unavailable", message);
+    if (err instanceof ToolError && err.code === "not_found") throw new ToolError("not_installed", message);
     throw err;
   };
 }

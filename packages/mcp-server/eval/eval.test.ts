@@ -9,10 +9,10 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { AgentRun } from "@ops-agent/watcher/agent";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Lab, startLab } from "../lab/scenario.js";
 import { selectScenarios } from "../lab/scenarios/index.js";
-import type { AgentRun } from "./agent.js";
 import { diagnose, grade } from "./backends.js";
 import { checkRun, passesChecks } from "./checks.js";
 import { loadDotEnv, loadEvalConfig } from "./config.js";

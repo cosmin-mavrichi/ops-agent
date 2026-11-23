@@ -122,7 +122,7 @@ describe("k8s_pg_backups (unit)", () => {
     const k8s = fakeK8s({ "/clusters": notFound }, ["app"]);
     const h = await harness({ tools: [k8sPgBackups], k8s: k8s.client });
     const res = await h.call("k8s_pg_backups");
-    expect(res.json).toMatchObject({ error: "unavailable" });
+    expect(res.json).toMatchObject({ error: "not_installed" });
     expect(res.json.message).toContain("CloudNativePG is not installed");
   });
 });

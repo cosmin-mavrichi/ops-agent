@@ -101,7 +101,7 @@ describe("pg_job_queues (unit)", () => {
   it("says pg-boss is not installed instead of failing", async () => {
     const h = await harness({ tools: [pgJobQueues], pg: fakePg({ access: null }).client });
     const res = await h.call("pg_job_queues");
-    expect(res.json).toMatchObject({ error: "unavailable" });
+    expect(res.json).toMatchObject({ error: "not_installed" });
   });
 
   it("names the grant to run when ops_ro may not read the counters", async () => {

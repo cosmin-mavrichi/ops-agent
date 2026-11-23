@@ -60,7 +60,7 @@ describe("pg_slow_queries (unit)", () => {
   it("explains a missing extension instead of failing opaquely", async () => {
     const h = await harness({ tools: [pgSlowQueries], pg: fakePg({ extension: false }).client });
     const res = await h.call("pg_slow_queries");
-    expect(res.json.error).toBe("unavailable");
+    expect(res.json.error).toBe("not_installed");
   });
 });
 

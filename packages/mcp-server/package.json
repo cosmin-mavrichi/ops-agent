@@ -6,13 +6,13 @@
     "test": "test"
   },
   "scripts": {
-    "build": "tsc -p .",
-    "typecheck": "tsc -p . --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p .",
     "start": "node dist/src/index.js",
     "test": "vitest run test/unit",
     "test:int": "vitest run test/integration",
     "lab": "vitest run lab --no-file-parallelism --reporter=verbose",
-    "eval": "tsc -p . && vitest run eval/eval.test.ts --reporter=verbose"
+    "eval": "tsc -p tsconfig.build.json && vitest run eval/eval.test.ts --reporter=verbose"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "1.8.0",
+    "@ops-agent/watcher": "workspace:*",
     "@modelcontextprotocol/client": "^2.4.0",
     "@testcontainers/k3s": "12.2.1",
     "@testcontainers/postgresql": "^12.2.1",

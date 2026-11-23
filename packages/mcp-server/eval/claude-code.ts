@@ -2,8 +2,8 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type AgentRun, type Outcome, SYSTEM_PROMPT, type ToolCall } from "@ops-agent/watcher/agent";
 import { z } from "zod";
-import { type AgentRun, type Outcome, SYSTEM_PROMPT, type ToolCall } from "./agent.js";
 import { type Expected, JUDGE_SYSTEM, type Judgement, judgePrompt, Verdict } from "./judge.js";
 
 /** MCP tools appear to Claude Code as mcp__<server>__<tool>. */

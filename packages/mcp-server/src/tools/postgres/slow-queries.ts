@@ -75,7 +75,7 @@ export const pgSlowQueries = defineTool({
     );
     if (!ext[0]?.ok) {
       throw new ToolError(
-        "unavailable",
+        "not_installed",
         "pg_stat_statements is not installed in this database. It needs shared_preload_libraries " +
           "and CREATE EXTENSION — a setup step, not something to fix during an incident.",
       );

@@ -119,7 +119,7 @@ const byUrgency = (a: Queue, b: Queue) => b.problems.length - a.problems.length 
 
 async function assertReadable(pg: SqlClient): Promise<void> {
   const [access] = await pg.query<{ readable: boolean }>(ACCESS_SQL);
-  if (access === undefined) throw new ToolError("unavailable", NOT_INSTALLED);
+  if (access === undefined) throw new ToolError("not_installed", NOT_INSTALLED);
   if (!access.readable) throw new ToolError("forbidden", NOT_GRANTED);
 }
 

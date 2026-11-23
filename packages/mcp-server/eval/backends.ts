@@ -1,20 +1,14 @@
 import { fileURLToPath } from "node:url";
-import type Anthropic from "@anthropic-ai/sdk";
 import type { Tool } from "@modelcontextprotocol/client";
+import { type AgentRun, runAgent, type ToolServer } from "@ops-agent/watcher/agent";
+import { toAnthropicTool } from "@ops-agent/watcher/mcp";
 import type { Lab, Scenario } from "../lab/scenario.js";
-import { type AgentRun, runAgent, type ToolServer } from "./agent.js";
 import { judgeWithClaudeCode, runClaudeCodeAgent } from "./claude-code.js";
 import type { EvalConfig } from "./config.js";
 import { type Judgement, judge } from "./judge.js";
 
-/** The real server, built by `pnpm eval` before the run (tsc -p .), for the claude-code backend. */
+/** The real server, built by `pnpm eval` before the run (tsc -p tsconfig.build.json), for the claude-code backend. */
 const SERVER_ENTRY = fileURLToPath(new URL("../dist/src/index.js", import.meta.url));
-
-const toAnthropicTool = (tool: Tool): Anthropic.Tool => ({
-  name: tool.name,
-  description: tool.description ?? "",
-  input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
-});
 
 /** DeepSeek answers with its own version name (e.g. DeepSeek-V4.1-Flash-1017), not the alias asked for. */
 const isDeepSeek = (served: string) => served.toLowerCase().startsWith("deepseek");

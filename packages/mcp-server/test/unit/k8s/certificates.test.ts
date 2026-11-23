@@ -134,7 +134,7 @@ describe("k8s_certificates (unit)", () => {
     const h = await harness({ tools: [k8sCertificates], k8s: k8s.client });
     const res = await h.call("k8s_certificates");
     expect(res.isError).toBe(true);
-    expect(res.json.error).toBe("unavailable");
+    expect(res.json.error).toBe("not_installed");
     expect(res.json.message).toContain("cert-manager is not installed");
   });
 });

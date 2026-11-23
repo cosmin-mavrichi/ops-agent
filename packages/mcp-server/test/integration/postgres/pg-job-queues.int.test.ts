@@ -60,7 +60,7 @@ async function startApplication(): Promise<PgBoss> {
 describe("pg_job_queues against pg-boss", () => {
   it("says pg-boss is not installed in a database without it", async () => {
     const res = await h.call("pg_job_queues");
-    expect(res.json).toMatchObject({ error: "unavailable" });
+    expect(res.json).toMatchObject({ error: "not_installed" });
   });
 
   it("names the grant to run when ops_ro may not read the counters yet", async () => {

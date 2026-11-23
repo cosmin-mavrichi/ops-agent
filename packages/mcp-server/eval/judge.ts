@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { costOf } from "@ops-agent/watcher/pricing";
 import { z } from "zod";
-import { costOf } from "./pricing.js";
 
 /** What the scenario says a correct report contains. */
 export interface Expected {

@@ -87,6 +87,8 @@ export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
     startRedis("valkey"),
     searchStarting,
   ]);
+  // The fixture's own setup (CREATE ROLE ... PASSWORD) is not part of any incident; left in, the agent reports it.
+  await db.admin.query("SELECT pg_stat_statements_reset()");
   const pg = createPgClient({ connectionString: db.opsUrl, onError: () => {} });
   const [appSecrets, monitoring] = await Promise.all([
     readMountedSecrets(k3s, needs.mountedSecrets ?? {}),

@@ -28,8 +28,11 @@ export const slowKeys: Scenario = {
     await seed.hSet(`report:${REPORT_TOKEN}`, fields);
 
     const reports = await lab.cache.connectApp("reports");
-    for (let i = 0; i < 3; i++) await reports.keys("order:*");
-    await reports.hGetAll(`report:${REPORT_TOKEN}`);
+    // As a repeating job would: each run lists the orders and reads the report, so both show up alike.
+    for (let i = 0; i < 3; i++) {
+      await reports.keys("order:*");
+      await reports.hGetAll(`report:${REPORT_TOKEN}`);
+    }
   },
 
   evidence: [
@@ -37,7 +40,8 @@ export const slowKeys: Scenario = {
       tool: "redis_slowlog",
       shows: "KEYS and HGETALL from the reports client are the slow commands, with key names masked",
       check: ({ json }) => {
-        expect(json.by_command[0]).toMatchObject({ command: "KEYS", count: 3 });
+        expect(json.by_command).toContainEqual(expect.objectContaining({ command: "KEYS", count: 3 }));
+        expect(json.by_command).toContainEqual(expect.objectContaining({ command: "HGETALL", count: 3 }));
         const shapes = json.entries.map(
           (e: { command: string; key_shape: string; client_name: string }) =>
             `${e.client_name} ${e.command} ${e.key_shape}`,

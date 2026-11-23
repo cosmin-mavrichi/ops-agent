@@ -44,9 +44,10 @@ diagnostic APIs, as with Valkey/Redis).
   start; lab scenario search-rejections (an undersized node rejects the storefront's searches). Done.
 
 **Step 6, agent loop and evals.** Built: the agent loop, three backends (own Claude subscription via Claude Code,
-Claude API, DeepSeek), code-checked guardrails, a judge, and a readable report per run. All 12 scenarios have been
-run once: 10 diagnosed correctly, all safe. Status, results and the open items (two agent prompt changes, then a
-full pass): `docs/eval-status.md`.
+Claude API, DeepSeek), code-checked guardrails, a judge, and a readable report per run. Full pass after the agent
+prompt changes and a slow-keys scenario fix: all 12 diagnosed correctly at least once on the final version, all
+safe; prompt-injection, the flakiest, now passes 5 of 5. Status, results and open items:
+`docs/eval-status.md`.
 
 **Step 7, cheaper runs.** Use code for what code can do and the model only for judgment. Every change is measured
 with the evals (turns, tokens, cost and diagnosis score per scenario), so savings never come from worse diagnoses.

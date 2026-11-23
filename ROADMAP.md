@@ -56,6 +56,10 @@ with the evals (turns, tokens, cost and diagnosis score per scenario), so saving
   investigation only when one reports a problem; one investigation per incident, not per alert.
 - **First-look bundles:** the code that starts an investigation gathers the evidence for that area in parallel
   (pod alert: pods, events, logs), so the model starts with it instead of exploring turn by turn.
+  First PR: `ops_triage`, one call that runs every configured check in parallel and returns only the problems,
+  grouped by tool, plus the clean and unavailable checks; the watcher can run the same tool on a schedule. Not yet
+  measured with the evals (no model runs for now); a quick headless Haiku check would cover crash-loop, which has
+  an `ops_triage` evidence check, and one Postgres scenario.
 - **Compact tool output** for the model (problems plus key fields; full detail on request). First PR: compact
   JSON from the registry, repeated log lines folded and dated to the second, slow-query text without comments or
   literals and cut to 300 characters, no first-seen time on one-off events. Measured on the last full eval pass's

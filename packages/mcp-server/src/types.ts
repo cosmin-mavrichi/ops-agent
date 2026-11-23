@@ -52,6 +52,8 @@ export type Adapter = "pg" | "k8s" | "redis" | "prom" | "search";
 
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
+  /** The adapters this deployment configured; calling any other one throws. */
+  readonly adapters: readonly Adapter[];
   pg: SqlClient;
   k8s: K8sClient;
   redis: RedisClient;
@@ -61,7 +63,8 @@ export interface ToolContext {
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
-export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape> {
+/** `O` is what `run` returns, so a tool that builds on another (ops_triage) reads its output typed. */
+export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape, O = unknown> {
   name: string;
   level: Level;
   title: string;
@@ -72,11 +75,11 @@ export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape> {
   requires?: readonly Adapter[];
   timeoutMs?: number;
   maxOutputChars?: number;
-  run(args: z.infer<z.ZodObject<S>>, ctx: ToolContext): Promise<unknown>;
+  run(args: z.infer<z.ZodObject<S>>, ctx: ToolContext): Promise<O>;
 }
 
-/** Identity helper that keeps `args` typed from the zod shape. */
-export function defineTool<S extends z.core.$ZodShape>(def: ToolDef<S>): ToolDef<S> {
+/** Identity helper that keeps `args` typed from the zod shape and the output typed from `run`. */
+export function defineTool<S extends z.core.$ZodShape, O>(def: ToolDef<S, O>): ToolDef<S, O> {
   return def;
 }
 

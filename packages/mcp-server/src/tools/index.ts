@@ -13,9 +13,11 @@ import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
 import { searchClusterHealth } from "./search/cluster-health.js";
 import { searchNodePressure } from "./search/node-pressure.js";
+import { opsTriage } from "./triage.js";
 
 /** Single source of truth for the exposed surface. Add new tools here. */
 export const allTools: ToolDef<any>[] = [
+  opsTriage,
   pgSlowQueries,
   pgActivity,
   pgBlocking,

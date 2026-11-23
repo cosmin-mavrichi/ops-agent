@@ -28,12 +28,13 @@ const k8s = cfg.k8s ? k8sClientFrom(cfg.k8s) : k8sNotConfigured();
 const redis = cfg.redisUrl ? redisClientFrom(cfg.redisUrl) : redisNotConfigured();
 const prom = cfg.promUrl ? createPromClient({ url: cfg.promUrl }) : promNotConfigured();
 const search = cfg.search ? searchClientFrom(cfg.search) : searchNotConfigured();
-const tools = toolsFor(allTools, configuredAdapters());
+const adapters = configuredAdapters();
+const tools = toolsFor(allTools, adapters);
 
 const registryOpts: RegistryOptions = {
   maxLevel: cfg.maxLevel,
   redact,
-  context: (signal) => ({ pg, k8s, redis, prom, search, signal, log }),
+  context: (signal) => ({ adapters, pg, k8s, redis, prom, search, signal, log }),
   audit: (e) => log("tool_call", { ...e }),
 };
 

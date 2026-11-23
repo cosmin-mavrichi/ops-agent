@@ -1,4 +1,5 @@
 import type { Scenario } from "../scenario.js";
+import { apiDbLogin } from "./k8s/api-db-login.js";
 import { crashLoop } from "./k8s/crash-loop.js";
 import { expiringCertificate } from "./k8s/expiring-certificate.js";
 import { volumeFull } from "./k8s/volume-full.js";
@@ -17,6 +18,7 @@ export const scenarios: readonly Scenario[] = [
   crashLoop,
   expiringCertificate,
   volumeFull,
+  apiDbLogin,
   failingBackups,
   lockContention,
   pausedWorker,

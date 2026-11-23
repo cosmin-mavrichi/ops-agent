@@ -90,6 +90,10 @@ Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then
 
 Starts only after step 6: the evals must show the agent names the right root cause reliably before it may act on it.
 
+**Status: design** (2026-11-24, `docs/v2-design.md`). v2.0: approval in the MCP client (a confirmation form before
+any action), first action `k8s_rollout_restart`, write server in its own package `packages/mcp-write`. v2.1:
+out-of-band approval (the watcher proposes, you approve with a command), for simple fixes such as a restart.
+
 **Prerequisites, before the first write tool:**
 
 - **Approval flow.** The agent proposes an action with its reason ("restart `worker`: crash-looping, exit 137, OOM");
@@ -130,6 +134,23 @@ Starts only after step 6: the evals must show the agent names the right root cau
    - **Never triggered by log content.** The plan must rest on measured evidence and a human approval; a log line
      asking for invalidation is prompt injection (cover it in the lab and evals).
    - The report names the real fix (versioned cache keys, deploy order); invalidation is the mitigation.
+
+## Making on-call easier
+
+Ideas from the on-call side (2026-11-24): what costs time or sleep on a self-hosted stack, and what the agent could
+do about it. Roughly in order of value; each is its own PR, read-only unless it says otherwise.
+
+| Idea                       | The annoyance                                                                  | What the agent does                                                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **What changed**           | Most incidents follow a deploy or config change; finding it is the slow part   | `k8s_changes`: recent rollouts (image, revision, when) per deployment from ReplicaSets; triage and reports say "started 3 min after deploy" |
+| **Rollback** (v2)          | A bad deploy's usual fix is going back                                         | `k8s_rollout_undo` after `k8s_rollout_restart`, same approval flow, justified by "what changed"                                             |
+| **Failing jobs**           | A nightly CronJob (backup, report) fails silently for weeks                    | `k8s_jobs`: failed and missed CronJob runs, last success; a triage check                                                                    |
+| **Slow but no error**      | CPU limits throttle the app, or memory creeps toward an OOM kill               | `prom_pod_resources`: CPU throttling and memory against limits per pod, from Prometheus; a triage check                                     |
+| **Daily digest**           | Slow problems (cert in 10 days, disk full in a week) only alert when urgent    | The watcher sends one daily summary of warnings that are not incidents yet; no model needed                                                 |
+| **Snooze and maintenance** | Alerts during a planned deploy, or about something already acknowledged        | `OPS_WATCH_IGNORE` with an expiry, and a maintenance window that holds investigations                                                       |
+| **Service notes**          | The agent doesn't know "the worker must never run 2 replicas" or who owns what | Operator notes per service (a ConfigMap), given to the agent as context and shown on approval forms                                         |
+| **Incident summary**       | Writing up what happened afterwards                                            | When an incident resolves, the watcher writes a short summary: timeline, cause, fix, from its own reports                                   |
+| **Ingress errors**         | 502s and 504s at the ingress, with the app's own metrics looking fine          | Read ingress-nginx's request metrics in `prom_http_health` too                                                                              |
 
 ## Backlog
 

@@ -71,7 +71,9 @@ kubectl -n ops create secret generic ops-watcher \
 
 Optional entries (all settings: [`docs/watcher.md`](watcher.md#configuration) and the README):
 
-- `OPS_PROM_URL='http://prometheus.monitoring.svc:9090'`: volume usage and time until full.
+- `OPS_PROM_URL='http://prometheus.monitoring.svc:9090'`: volume usage and time until full, and each app's error
+  rate and latency when it exposes a request duration histogram (`http_server_request_duration_seconds` from
+  OpenTelemetry, or `http_request_duration_seconds` from prom-client). Thresholds: `OPS_HTTP_*` in the README.
 - `OPS_SEARCH_URL='http://ops_ro:<password>@opensearch.app.svc:9200'`: OpenSearch, with the role from
   `deploy/search/`.
 - `OPS_WATCH_IGNORE='no maxmemory limit'`: problems you have accepted, so they never cost an investigation.

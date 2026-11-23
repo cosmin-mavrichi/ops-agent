@@ -34,7 +34,7 @@ const tools = toolsFor(allTools, adapters);
 const registryOpts: RegistryOptions = {
   maxLevel: cfg.maxLevel,
   redact,
-  context: (signal) => ({ adapters, pg, k8s, redis, prom, search, signal, log }),
+  context: (signal) => ({ adapters, pg, k8s, redis, prom, search, httpChecks: cfg.httpChecks, signal, log }),
   audit: (e) => log("tool_call", { ...e }),
 };
 

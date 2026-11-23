@@ -50,6 +50,14 @@ export interface SearchClient {
 
 export type Adapter = "pg" | "k8s" | "redis" | "prom" | "search";
 
+/** When an app's HTTP traffic counts as a problem; set by the operator (OPS_HTTP_*). */
+export interface HttpChecks {
+  /** Status codes or classes that count as errors, e.g. ["5xx", "429"]. */
+  readonly errorStatus: readonly string[];
+  readonly errorPct: number;
+  readonly p95Ms: number;
+}
+
 /** Everything a tool may touch. Tools never import adapters directly, so tests can pass fakes. */
 export interface ToolContext {
   /** The adapters this deployment configured; calling any other one throws. */
@@ -59,6 +67,7 @@ export interface ToolContext {
   redis: RedisClient;
   prom: PromClient;
   search: SearchClient;
+  readonly httpChecks: HttpChecks;
   signal: AbortSignal;
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }

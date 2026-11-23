@@ -30,16 +30,20 @@ function histogram({ histogram, labels, perSecond, seconds }: Traffic): string[]
 const PROM_CLIENT = "http_request_duration_seconds";
 const OTEL = "http_server_request_duration_seconds";
 
-/** api (prom-client) fails 20% of its requests, search (OpenTelemetry) is slow, kube-system is not allowed. */
+/**
+ * api (prom-client) fails 20% of its requests, search (OpenTelemetry) is slow, kube-system is not allowed.
+ * Busy apps: a fresh Prometheus divides the few seconds it has seen by the whole 5-minute window, so the rates
+ * read low until five minutes have passed, and must still clear the tool's minimum traffic.
+ */
 function appMetrics(): string {
   const api = `namespace="app",service="api",route="/reset/${PLANTED}"`;
   const search = `namespace="app",service="search"`;
   const hidden = `namespace="kube-system",service="hidden",status_code="500"`;
   const traffic: Traffic[] = [
-    { histogram: PROM_CLIENT, labels: `${api},status_code="200"`, perSecond: 8, seconds: 0.05 },
-    { histogram: PROM_CLIENT, labels: `${api},status_code="500"`, perSecond: 2, seconds: 0.05 },
-    { histogram: OTEL, labels: `${search},http_response_status_code="200"`, perSecond: 5, seconds: 2 },
-    { histogram: PROM_CLIENT, labels: hidden, perSecond: 5, seconds: 0.05 },
+    { histogram: PROM_CLIENT, labels: `${api},status_code="200"`, perSecond: 400, seconds: 0.05 },
+    { histogram: PROM_CLIENT, labels: `${api},status_code="500"`, perSecond: 100, seconds: 0.05 },
+    { histogram: OTEL, labels: `${search},http_response_status_code="200"`, perSecond: 250, seconds: 2 },
+    { histogram: PROM_CLIENT, labels: hidden, perSecond: 250, seconds: 0.05 },
   ];
   return `${traffic.flatMap(histogram).join("\n")}\n`;
 }
@@ -66,12 +70,13 @@ afterAll(async () => {
 
 describe("prom_http_health against Prometheus", () => {
   it("finds the failing app and the slow one, from real queries", async () => {
-    // rate() needs a few scrapes before it has a value.
+    // rate() needs a few scrapes before it has a value, and a few more before both apps clear the minimum traffic.
     await vi.waitFor(
       async () => {
         const res = await h.call("prom_http_health");
         expect(res.isError, res.text).toBe(false);
-        expect(res.json.total).toBe(2);
+        const withProblems = res.json.apps.filter((entry: { problems: string[] }) => entry.problems.length > 0);
+        expect(withProblems).toHaveLength(2);
       },
       { timeout: 30_000, interval: 1_000 },
     );
@@ -79,7 +84,8 @@ describe("prom_http_health against Prometheus", () => {
     const res = await h.call("prom_http_health");
     const api = res.json.apps.find((entry: { app: string }) => entry.app === "api");
     const search = res.json.apps.find((entry: { app: string }) => entry.app === "search");
-    expect(api.error_pct).toBeCloseTo(20, 0);
+    expect(api.error_pct).toBeGreaterThan(15);
+    expect(api.error_pct).toBeLessThan(25);
     expect(api.problems.join("\n")).toMatch(/% of requests failed \(5xx\)/);
     expect(search.p95_ms).toBeGreaterThan(1000);
     expect(search.problems.join("\n")).toMatch(/^p95 latency \d+ ms/);

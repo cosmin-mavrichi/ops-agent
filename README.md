@@ -34,6 +34,8 @@ All settings are environment variables. stdout is the MCP channel; logs go to st
 | `OPS_PG_URL`                            | yes      | Postgres URL as the `ops_ro` role (`deploy/sql/ops_ro.sql`)                                                                            |
 | `OPS_REDIS_URL`                         | no       | Redis or Valkey URL as the `ops_ro` ACL user (`deploy/redis/ops-ro.acl`); unset = no Redis tools                                       |
 | `OPS_PROM_URL`                          | no       | Prometheus-compatible query API (Prometheus, VictoriaMetrics, Mimir, Thanos); needs `OPS_K8S_NAMESPACES` too; unset = no metrics tools |
+| `OPS_HTTP_ERROR_STATUS`                 | no       | status codes or classes that count as app errors (default `5xx`; e.g. `5xx,429`)                                                       |
+| `OPS_HTTP_ERROR_PCT`, `OPS_HTTP_P95_MS` | no       | an app is flagged above this share of errors (default 5%) or this p95 latency (default 1000 ms)                                        |
 | `OPS_SEARCH_URL`                        | no       | OpenSearch or Elasticsearch URL as the `ops_ro` user (`deploy/search/`); unset = no search tools                                       |
 | `OPS_SEARCH_CA_FILE`                    | no       | PEM CA bundle when the search cluster has a self-signed certificate                                                                    |
 | `OPS_K8S_NAMESPACES`                    | no       | comma-separated namespaces the agent may inspect; unset = no Kubernetes tools                                                          |
@@ -87,7 +89,7 @@ packages/mcp-server/                the only code that touches infra
   src/tools/postgres/               shared (session columns), activity, blocking, job-queues (pg-boss)
   src/tools/k8s/                    shared (namespace allowlist), pods, events, logs
   src/tools/redis/                  shared (INFO parsing, key masking), health, slowlog
-  src/tools/prometheus/             volume-usage (PersistentVolumeClaim disk usage)
+  src/tools/prometheus/             volume-usage (PersistentVolumeClaim disk usage), http-health (app error rate and latency)
   src/tools/search/                 cluster-health, watermarks, node-pressure
   src/lib/sql-text.ts               strips literals/comments from live query text
   test/harness.ts                   real MCP server + client over in-memory transport (useHarness in tests)

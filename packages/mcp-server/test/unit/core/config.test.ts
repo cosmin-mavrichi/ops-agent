@@ -120,6 +120,27 @@ describe("loadConfig: prometheus", () => {
   });
 });
 
+describe("loadConfig: HTTP checks", () => {
+  const base = { OPS_PG_URL: PG_URL };
+
+  it("counts server errors by default", () => {
+    expect(loadConfig(base).httpChecks).toEqual({ errorStatus: ["5xx"], errorPct: 5, p95Ms: 1000 });
+  });
+
+  it("takes codes and classes", () => {
+    const cfg = loadConfig({ ...base, OPS_HTTP_ERROR_STATUS: "5xx, 429", OPS_HTTP_P95_MS: "300" });
+    expect(cfg.httpChecks).toMatchObject({ errorStatus: ["5xx", "429"], p95Ms: 300 });
+  });
+
+  it.each(["", "5..", '5xx"} or vector(1)', "600", "4x"])("refuses OPS_HTTP_ERROR_STATUS=%j", (status) => {
+    expect(() => loadConfig({ ...base, OPS_HTTP_ERROR_STATUS: status })).toThrow(/OPS_HTTP_ERROR_STATUS/);
+  });
+
+  it.each(["0", "101", "x"])("refuses OPS_HTTP_ERROR_PCT=%s", (pct) => {
+    expect(() => loadConfig({ ...base, OPS_HTTP_ERROR_PCT: pct })).toThrow();
+  });
+});
+
 describe("loadConfig: search", () => {
   const base = { OPS_PG_URL: PG_URL };
 

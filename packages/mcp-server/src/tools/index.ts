@@ -8,6 +8,7 @@ import { pgActivity } from "./postgres/activity.js";
 import { pgBlocking } from "./postgres/blocking.js";
 import { pgJobQueues } from "./postgres/job-queues.js";
 import { pgSlowQueries } from "./postgres/slow-queries.js";
+import { promHttpHealth } from "./prometheus/http-health.js";
 import { promVolumeUsage } from "./prometheus/volume-usage.js";
 import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
@@ -30,6 +31,7 @@ export const allTools: ToolDef<any>[] = [
   redisHealth,
   redisSlowlog,
   promVolumeUsage,
+  promHttpHealth,
   searchClusterHealth,
   searchNodePressure,
 ];

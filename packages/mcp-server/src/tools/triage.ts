@@ -8,6 +8,7 @@ import { k8sPgBackups } from "./k8s/pg-backups.js";
 import { k8sPods, type summarizePod } from "./k8s/pods.js";
 import { pgBlocking } from "./postgres/blocking.js";
 import { pgJobQueues } from "./postgres/job-queues.js";
+import { promHttpHealth } from "./prometheus/http-health.js";
 import { promVolumeUsage } from "./prometheus/volume-usage.js";
 import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
@@ -87,6 +88,9 @@ const CHECKS: readonly Check[] = [
   ),
   check(promVolumeUsage, {}, (out) =>
     namedProblems(out.volumes.map((volume) => ({ label: `${volume.namespace}/${volume.pvc}`, ...volume }))),
+  ),
+  check(promHttpHealth, {}, (out) =>
+    namedProblems(out.apps.map((app) => ({ label: `${app.namespace}/${app.app}`, ...app }))),
   ),
   check(pgBlocking, {}, (out) => {
     if (out.waiting_sessions === 0) return [];

@@ -6,6 +6,7 @@ import { createRedactor } from "../src/lib/redact.js";
 import { type AuditEntry, registerTools } from "../src/registry.js";
 import {
   type Adapter,
+  type HttpChecks,
   type K8sClient,
   Level,
   type PromClient,
@@ -26,6 +27,7 @@ export interface HarnessOptions {
   redis?: RedisClient;
   prom?: PromClient;
   search?: SearchClient;
+  httpChecks?: HttpChecks;
   maxLevel?: Level;
   knownSecrets?: string[];
 }
@@ -45,6 +47,7 @@ export async function startHarness(opts: HarnessOptions) {
       redis: opts.redis ?? missingRedis,
       prom: opts.prom ?? missingProm,
       search: opts.search ?? missingSearch,
+      httpChecks: opts.httpChecks ?? DEFAULT_HTTP_CHECKS,
       signal,
       log: () => {},
     }),
@@ -105,6 +108,9 @@ function parseJson(text: string): any {
     return undefined;
   }
 }
+
+/** The server's defaults (config.ts). */
+export const DEFAULT_HTTP_CHECKS: HttpChecks = { errorStatus: ["5xx"], errorPct: 5, p95Ms: 1000 };
 
 const notInThisTest = (adapter: string) => async (): Promise<never> => {
   throw new Error(`no ${adapter} in this test`);

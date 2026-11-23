@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { Level } from "./types.js";
+import { type HttpChecks, Level } from "./types.js";
 
 const SA_DIR = "/var/run/secrets/kubernetes.io/serviceaccount";
+// A status code (503) or class (5xx). It goes into PromQL, so nothing else may pass.
+const HTTP_STATUS = /^[1-5](\d\d|xx)$/;
 
 const Env = z.object({
   OPS_PG_URL: z.url(),
@@ -26,6 +28,11 @@ const Env = z.object({
   OPS_SEARCH_URL: z.url({ protocol: /^https?$/ }).optional(),
   /** PEM CA bundle for a search cluster with a self-signed certificate. */
   OPS_SEARCH_CA_FILE: z.string().min(1).optional(),
+  /** Comma-separated status codes or classes that count as HTTP errors, e.g. "5xx,429". */
+  OPS_HTTP_ERROR_STATUS: z.string().default("5xx"),
+  /** An app is flagged when this share of its requests fail, or its p95 latency passes OPS_HTTP_P95_MS. */
+  OPS_HTTP_ERROR_PCT: z.coerce.number().gt(0).max(100).default(5),
+  OPS_HTTP_P95_MS: z.coerce.number().int().positive().default(1000),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
@@ -46,6 +53,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     knownSecrets: [...splitList(vars.OPS_KNOWN_SECRETS), ...urlPasswords],
     knownSecretsDir: vars.OPS_KNOWN_SECRETS_DIR,
     k8s: k8sConfig(vars),
+    httpChecks: httpChecksConfig(vars),
   };
 }
 
@@ -80,6 +88,16 @@ function passwordIn(url: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function httpChecksConfig(vars: z.infer<typeof Env>): HttpChecks {
+  const errorStatus = splitList(vars.OPS_HTTP_ERROR_STATUS);
+  const invalid = errorStatus.find((status) => !HTTP_STATUS.test(status));
+  if (errorStatus.length === 0 || invalid !== undefined) {
+    const got = JSON.stringify(invalid ?? "");
+    throw new Error(`OPS_HTTP_ERROR_STATUS takes status codes or classes such as 503 or 5xx, got ${got}`);
+  }
+  return { errorStatus, errorPct: vars.OPS_HTTP_ERROR_PCT, p95Ms: vars.OPS_HTTP_P95_MS };
 }
 
 function searchConfig(vars: z.infer<typeof Env>) {

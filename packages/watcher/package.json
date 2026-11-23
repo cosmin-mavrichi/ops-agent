@@ -9,6 +9,9 @@
     "./pricing": "./src/pricing.ts",
     "./mcp": "./src/mcp.ts"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p . --noEmit",

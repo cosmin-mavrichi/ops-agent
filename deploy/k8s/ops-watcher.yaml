@@ -1,0 +1,81 @@
+# The watcher and the read-only MCP server it starts, in the ops namespace. Setup, in order (docs/deploy.md):
+#   1. kubectl apply -f deploy/k8s/ops-ro.yaml       (namespace, read-only ServiceAccount and RBAC)
+#   2. kubectl -n ops create secret generic ops-watcher --from-literal=OPS_PG_URL=… --from-literal=ANTHROPIC_API_KEY=…
+#   3. kubectl apply -f deploy/k8s/ops-watcher.yaml
+# Reading the reports: docs/watcher.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ops-watcher-reports
+  namespace: ops
+spec:
+  accessModes: [ReadWriteOnce]
+  # The cluster's default StorageClass (k3s: local-path). A few lines per incident: 1Gi lasts years.
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-watcher
+  namespace: ops
+  labels:
+    app: ops-watcher
+spec:
+  # One watcher: a second one would investigate every incident again.
+  replicas: 1
+  # The report volume is ReadWriteOnce: stop the old pod before starting the new one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ops-watcher
+  template:
+    metadata:
+      labels:
+        app: ops-watcher
+    spec:
+      # Read-only access to the inspected namespaces (deploy/k8s/ops-ro.yaml); the server uses its token.
+      serviceAccountName: ops-ro
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: watcher
+          # :main follows every merge (upgrade: kubectl -n ops rollout restart deploy/ops-watcher). For a fixed
+          # version use :sha-<commit> from the image's tags and set imagePullPolicy to IfNotPresent.
+          image: ghcr.io/cosmin-mavrichi/ops-agent:main
+          imagePullPolicy: Always
+          # Connection URLs and the API key (docs/deploy.md).
+          envFrom:
+            - secretRef:
+                name: ops-watcher
+          env:
+            - name: OPS_WATCH_REPORT_FILE
+              value: /var/lib/ops-watcher/reports.jsonl
+            # Must match the namespaces granted in deploy/k8s/ops-ro.yaml (comma-separated).
+            - name: OPS_K8S_NAMESPACES
+              value: app
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          volumeMounts:
+            - name: reports
+              mountPath: /var/lib/ops-watcher
+      volumes:
+        - name: reports
+          persistentVolumeClaim:
+            claimName: ops-watcher-reports

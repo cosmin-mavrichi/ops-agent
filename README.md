@@ -2,6 +2,9 @@
 
 Own AI ops agent for self-hosted infra. v1 = read-only diagnosis.
 
+Run it on your cluster: [`docs/deploy.md`](docs/deploy.md) (one pod, read-only credentials, about $0.002 per
+investigation). How the watcher decides and how to read its reports: [`docs/watcher.md`](docs/watcher.md).
+
 ## Setup
 
 Node version is pinned in `.nvmrc` (Node 26 LTS); package manager is pnpm (pinned in `package.json`).
@@ -90,9 +93,12 @@ packages/mcp-server/                the only code that touches infra
   test/harness.ts                   real MCP server + client over in-memory transport (useHarness in tests)
   test/{unit,integration}/<area>/   tests grouped by area: core, postgres, k8s, redis, prometheus, search
   lab/scenarios/<area>/             fault lab scenarios
+packages/watcher/         runs ops_triage every minute, investigates new incidents (docs/watcher.md)
+Dockerfile               one image: watcher + read-only MCP server
 deploy/sql/ops_ro.sql    one-time Postgres role setup
 deploy/sql/ops_ro_pgboss.sql  optional: lets ops_ro read pg-boss queue counters (never job payloads)
 deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
+deploy/k8s/ops-watcher.yaml  the watcher's Deployment and report volume (docs/deploy.md)
 deploy/redis/ops-ro.acl  read-only, keyless ACL user for Redis/Valkey
 deploy/search/           monitor-only roles for OpenSearch and Elasticsearch (no document reads)
 ```

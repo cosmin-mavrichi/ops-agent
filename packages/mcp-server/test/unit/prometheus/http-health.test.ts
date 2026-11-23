@@ -12,13 +12,24 @@ const app = (service: string, value: number, extra: Record<string, string> = {})
   value,
 });
 
-type Kind = "requests" | "errors" | "p95";
-type Answers = Readonly<Partial<Record<Kind, readonly PromSample[]>>>;
+type Series = Parameters<typeof summarizeApps>[0];
+type Kind = keyof Series;
+type Answers = Readonly<Partial<Series>>;
 
-const kindOf = (promql: string): Kind => {
+const NO_SERIES: Series = { requests: [], errors: [], p95: [], usualRequests: [], usualErrors: [], usualP95: [] };
+const summarize = (answers: Answers) => summarizeApps({ ...NO_SERIES, ...answers }, DEFAULT_HTTP_CHECKS);
+
+function kindNow(promql: string): "requests" | "errors" | "p95" {
   if (promql.startsWith("histogram_quantile")) return "p95";
   return promql.includes("status_code=~") ? "errors" : "requests";
-};
+}
+
+const USUAL_KIND = { requests: "usualRequests", errors: "usualErrors", p95: "usualP95" } as const;
+
+function kindOf(promql: string): Kind {
+  const kind = kindNow(promql);
+  return promql.includes(" offset ") ? USUAL_KIND[kind] : kind;
+}
 
 /** Answers OpenTelemetry-named queries with `otel` and prom-client-named ones with `promClient`. */
 function fakeHttpProm(otel: Answers, promClient: Answers = {}) {
@@ -34,14 +45,11 @@ function fakeHttpProm(otel: Answers, promClient: Answers = {}) {
 }
 
 describe("summarizeApps", () => {
-  const apps = summarizeApps(
-    {
-      requests: [app("api", 20), app("search", 4), app("admin", 0.05)],
-      errors: [app("api", 2), app("admin", 0.05)],
-      p95: [app("api", 0.12), app("search", 2.5), app("admin", Number.NaN)],
-    },
-    DEFAULT_HTTP_CHECKS,
-  );
+  const apps = summarize({
+    requests: [app("api", 20), app("search", 4), app("admin", 0.05)],
+    errors: [app("api", 2), app("admin", 0.05)],
+    p95: [app("api", 0.12), app("search", 2.5), app("admin", Number.NaN)],
+  });
   const find = (name: string) => apps.find((entry) => entry.app === name);
 
   it("flags an app whose error share passes the limit", () => {
@@ -61,11 +69,46 @@ describe("summarizeApps", () => {
   });
 
   it("falls back to the job label when there is no service label", () => {
-    const [only] = summarizeApps(
-      { requests: [{ labels: { namespace: "app", job: "api" }, value: 1 }], errors: [], p95: [] },
-      DEFAULT_HTTP_CHECKS,
-    );
-    expect(only).toMatchObject({ app: "api", p95_ms: null, problems: [] });
+    const [only] = summarize({ requests: [{ labels: { namespace: "app", job: "api" }, value: 1 }] });
+    expect(only).toMatchObject({ app: "api", p95_ms: null, usual_error_pct: null, problems: [] });
+  });
+});
+
+describe("summarizeApps: worse than usual", () => {
+  // All under the limits (5%, 1000 ms) now; the usual values come from the day before the last hour.
+  const apps = summarize({
+    requests: [app("api", 10), app("search", 10), app("steady", 10), app("quiet", 10), app("new", 10)],
+    errors: [app("api", 0.3), app("steady", 0.3), app("quiet", 0.05), app("new", 0.3)],
+    p95: [app("api", 0.1), app("search", 0.5), app("steady", 0.1), app("quiet", 0.05)],
+    usualRequests: [app("api", 10), app("search", 10), app("steady", 10), app("quiet", 10)],
+    usualErrors: [app("api", 0.05), app("steady", 0.3), app("quiet", 0.001)],
+    usualP95: [app("api", 0.1), app("search", 0.1), app("steady", 0.1), app("quiet", 0.01)],
+  });
+  const find = (name: string) => apps.find((entry) => entry.app === name);
+
+  it("flags errors at three times their usual share", () => {
+    expect(find("api")).toMatchObject({ error_pct: 3, usual_error_pct: 0.5 });
+    expect(find("api")?.problems).toEqual([
+      "3% of requests failed (5xx) in the last 5 minutes, usually 0.5%, at 10 requests/s",
+    ]);
+  });
+
+  it("flags latency at twice its usual p95", () => {
+    expect(find("search")?.problems).toEqual([
+      "p95 latency 500 ms in the last 5 minutes, usually 100 ms (limit 1000 ms)",
+    ]);
+  });
+
+  it("leaves an app alone at its usual values", () => {
+    expect(find("steady")).toMatchObject({ error_pct: 3, usual_error_pct: 3, problems: [] });
+  });
+
+  it("ignores a big jump that stays under the floors (1% errors, 300 ms)", () => {
+    expect(find("quiet")).toMatchObject({ error_pct: 0.5, usual_error_pct: 0, p95_ms: 50, problems: [] });
+  });
+
+  it("judges an app without history by the limits only", () => {
+    expect(find("new")).toMatchObject({ error_pct: 3, usual_error_pct: null, problems: [] });
   });
 });
 
@@ -94,8 +137,8 @@ describe("prom_http_health (unit)", () => {
     const httpChecks = { ...DEFAULT_HTTP_CHECKS, errorStatus: ["5xx", "429"] };
     const h = await harness({ tools: [promHttpHealth], prom: prom.client, k8s: fakeK8s().client, httpChecks });
     await h.call("prom_http_health");
-    const errorQueries = prom.queries.filter((promql) => kindOf(promql) === "errors");
-    expect(errorQueries).toHaveLength(2);
+    const errorQueries = prom.queries.filter((promql) => kindNow(promql) === "errors");
+    expect(errorQueries).toHaveLength(4);
     expect(errorQueries.every((promql) => promql.includes('=~"5..|429"'))).toBe(true);
   });
 

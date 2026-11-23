@@ -11,11 +11,28 @@ export interface PromFixture {
   stop(): Promise<void>;
 }
 
-/** Prometheus scraping every second with the given `scrape_configs` entries (YAML list items). */
-export async function startPrometheus(scrapeConfigs: string): Promise<PromFixture> {
+const HISTORY_FILE = "/tmp/history.om";
+// The image's own entrypoint and arguments, run after the backfill.
+const BACKFILL_THEN_START =
+  `promtool tsdb create-blocks-from openmetrics ${HISTORY_FILE} /prometheus && ` +
+  "exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus";
+
+/**
+ * Prometheus scraping every second with the given `scrape_configs` entries (YAML list items). `history` is
+ * OpenMetrics text with timestamps, loaded with promtool before Prometheus starts, for queries over past days.
+ */
+export async function startPrometheus(scrapeConfigs: string, history?: string): Promise<PromFixture> {
   const config = `global: { scrape_interval: 1s }\nscrape_configs:\n${scrapeConfigs}\n`;
-  const container = await new GenericContainer(IMAGE)
-    .withCopyContentToContainer([{ content: config, target: "/etc/prometheus/prometheus.yml" }])
+  const image = new GenericContainer(IMAGE).withCopyContentToContainer([
+    { content: config, target: "/etc/prometheus/prometheus.yml" },
+  ]);
+  if (history !== undefined) {
+    image
+      .withCopyContentToContainer([{ content: history, target: HISTORY_FILE }])
+      .withEntrypoint(["/bin/sh", "-c"])
+      .withCommand([BACKFILL_THEN_START]);
+  }
+  const container = await image
     .withExposedPorts(9090)
     .withWaitStrategy(Wait.forLogMessage("Server is ready to receive web requests"))
     .start();

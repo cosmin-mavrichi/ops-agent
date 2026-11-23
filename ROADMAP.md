@@ -16,7 +16,7 @@ merge to `main` when green.
 | 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate          | done   |
 | 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                            | done   |
 | 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | doing  |
-| 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | doing  |
+| 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | done   |
 
 **Step 5b, one PR per area:**
 
@@ -66,20 +66,22 @@ with the evals (turns, tokens, cost and diagnosis score per scenario), so saving
 - **First-look bundles:** the code that starts an investigation gathers the evidence for that area in parallel
   (pod alert: pods, events, logs), so the model starts with it instead of exploring turn by turn.
   First PR: `ops_triage`, one call that runs every configured check in parallel and returns only the problems,
-  grouped by tool, plus the clean and unavailable checks; the watcher can run the same tool on a schedule. Not yet
-  measured with the evals (no model runs for now); a quick headless Haiku check would cover crash-loop, which has
-  an `ops_triage` evidence check, and one Postgres scenario.
+  grouped by tool, plus the clean and unavailable checks. The watcher runs it every minute and puts its result in
+  the investigation's first message. Measured with headless Haiku: crash-loop and lock-contention diagnosed
+  correctly and safely, model calls unchanged (4 and 3; the agent still double-checks pods and events). The savings
+  come from the watcher, which runs triage without a model. Per-area bundles beyond triage: backlog.
 - **Compact tool output** for the model (problems plus key fields; full detail on request). First PR: compact
   JSON from the registry, repeated log lines folded and dated to the second, slow-query text without comments or
   literals and cut to 300 characters, no first-seen time on one-off events. Measured on the last full eval pass's
   tool output: 19% fewer tokens; agent cost per full pass $0.0245 → $0.0213. The pass also fixed two tools the
   agent misread: `k8s_certificates` (a broken issuer is the blocker, not a second cause) and `redis_slowlog`
-  (`problems` for whole-collection reads). Left for later: a table layout for lists (another 9%, but it changes every tool's
-  output shape), and log volume itself (logs are 40% of tool tokens; JSON-structured logs dominate).
-- **Cheap model first,** escalating to a stronger one only when it can't explain the reported problems; non-urgent
-  reports through the Batch API.
+  (`problems` for whole-collection reads). Further output cuts: backlog.
+- **Cheap model first:** the watcher investigates with Haiku. Escalating to a stronger model and the Batch API
+  moved to the backlog: with the watcher, model runs are rare enough that they would save little.
 
-Estimated (2026-11-22, light use, ~1,500 runs a month): ~$30-60/month today, ~$5-10 with the above.
+Cost (2026-11-23): before step 7, an estimated ~$30-60/month at ~1,500 agent runs a month. With the watcher, the
+model runs only for new incidents, under hard caps (3 investigations an hour, 10 a day, $0.05 each): at most about
+$0.50 a day, typically cents a month.
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
 `OPS_MAX_LEVEL > 1`.
@@ -132,6 +134,13 @@ Starts only after step 6: the evals must show the agent names the right root cau
 ## Backlog
 
 Smaller items, not tied to a step. Move into a step when picked up.
+
+- **Stronger model on escalation.** Investigate with Haiku and escalate only when it can't explain the reported
+  problems; non-urgent reports through the Batch API. Worth it only if investigations become frequent.
+- **Per-area first-look bundles.** When an investigation starts, gather that area's evidence in parallel (pod
+  alert: pods, events, logs) beyond what `ops_triage` returns, so the agent skips its double-check calls.
+- **Smaller tool output.** A table layout for lists (another 9% of tokens, but it changes every tool's output
+  shape), and log volume itself (logs are 40% of tool tokens; JSON-structured logs dominate).
 
 - **Watcher reports to a webhook.** Later, not a priority: POST each report as JSON to a configured URL (Slack
   incoming webhook, ntfy, Discord, own endpoint). Reports are log and file only for now (`docs/watcher.md`); note

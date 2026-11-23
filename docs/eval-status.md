@@ -95,8 +95,8 @@ the model.
 3. **Untested paths.** The `deepseek` backend (prompt caching and the judge's structured output on DeepSeek's
    Anthropic-format API are unverified); the `claude-code` backend has no turn limit flag, so turns are checked only
    after the run (the cost cap still stops runaway runs).
-4. **Then roadmap step 7** (cheaper runs: watcher, first-look bundles, compact output, cheap model first), measured
-   with these evals.
+4. **Roadmap step 7 is done** (compact output, `ops_triage`, the watcher, deployment). `ops_triage` was checked
+   with headless Haiku on crash-loop and lock-contention: both correct, model calls unchanged.
 
 ## How to run
 

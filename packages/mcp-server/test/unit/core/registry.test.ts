@@ -96,14 +96,14 @@ describe("call pipeline", () => {
   it("keeps the output valid JSON when a value is redacted", async () => {
     const h = await harness({ tools: [echo] });
     const res = await h.call("echo", { msg: "API_KEY=sk_live_123456" });
-    expect(res.json).toEqual({ msg: "API_KEY=***" });
+    expect(res.json).toEqual({ msg: "API_KEY=[redacted]" });
   });
 
   it("finds known secrets that JSON would escape", async () => {
     const secret = 'pa"ss\\word99';
     const h = await harness({ tools: [echo], knownSecrets: [secret] });
     const res = await h.call("echo", { msg: `login with ${secret}` });
-    expect(res.json).toEqual({ msg: "login with ***" });
+    expect(res.json).toEqual({ msg: "login with [redacted: known secret]" });
   });
 
   it("times out slow tools", async () => {

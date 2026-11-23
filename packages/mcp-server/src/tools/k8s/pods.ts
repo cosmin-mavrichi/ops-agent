@@ -26,6 +26,8 @@ export interface Pod {
     name: string;
     namespace: string;
     creationTimestamp?: string;
+    /** Set once the pod is being deleted (scale-down, rollout, eviction); it may keep running until it exits. */
+    deletionTimestamp?: string;
     labels?: Record<string, string>;
     ownerReferences?: Array<{ kind: string; name: string }>;
   };
@@ -103,7 +105,9 @@ export function summarizePod(pod: Pod, now: Date) {
     ...appStatuses.map((status) => summarize(status, "app")),
   ];
 
-  const phase = pod.status?.phase ?? "Unknown";
+  // A pod being deleted still reports phase Running until its containers exit; kubectl calls it Terminating.
+  const terminating = pod.metadata.deletionTimestamp !== undefined;
+  const phase = terminating ? "Terminating" : (pod.status?.phase ?? "Unknown");
   const readyCount = appStatuses.filter((status) => status.ready).length;
   const allReady = appStatuses.length > 0 && readyCount === appStatuses.length;
   // Between crashes a looping container is briefly running and (without a readiness probe) ready.
@@ -122,6 +126,7 @@ export function summarizePod(pod: Pod, now: Date) {
     ready: `${readyCount}/${appStatuses.length}`,
     restarts: containers.reduce((sum, container) => sum + container.restarts, 0),
     age_s: secondsSince(pod.metadata.creationTimestamp, now),
+    ...(terminating ? { deleting_since_s: secondsSince(pod.metadata.deletionTimestamp, now) } : {}),
     node: pod.spec?.nodeName ?? null,
     ...(pod.status?.reason ? { reason: pod.status.reason, message: clip(pod.status.message) } : {}),
     containers,
@@ -142,7 +147,8 @@ export const k8sPods = defineTool({
     "Pods in the allowed namespaces, unhealthy first. A container that died in the last 10 minutes counts as " +
     "unhealthy even if it is running again. For each container: state (running, or waiting/terminated with a " +
     "reason such as CrashLoopBackOff, ImagePullBackOff, OOMKilled, Error, and the exit code), restart count, the " +
-    "last termination, and resource limits. Owners are resolved to their Deployment. Use first when a service is " +
+    "last termination, and resource limits. A pod being deleted (scale-down, rollout) shows as Terminating. " +
+    "Owners are resolved to their Deployment. Use first when a service is " +
     "down, restarting or slow; then k8s_events for why, and k8s_logs for what the container said. Environment " +
     "variables and commands are never returned.",
   input: {

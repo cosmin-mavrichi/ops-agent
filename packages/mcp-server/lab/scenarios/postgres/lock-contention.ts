@@ -10,6 +10,9 @@ export const lockContention: Scenario = {
   rootCause:
     "A session updated a row in orders and left its transaction open ('idle in transaction'). It holds the row " +
     `lock, so ${WAITERS} other sessions updating the same row are stuck waiting behind it.`,
+  symptom: "Saving an order hangs and then times out. Reading orders still works.",
+  fix: "End the blocking session; fix the app so it does not leave transactions open.",
+  lookAt: "The root blocker in pg_blocking (and pg_activity).",
   secrets: [CARD_TOKEN],
 
   async break(lab) {

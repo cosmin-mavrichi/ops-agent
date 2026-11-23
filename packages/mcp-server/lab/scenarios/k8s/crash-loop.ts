@@ -9,9 +9,15 @@ const firstWorkerPod = (lab: Lab) =>
 
 export const crashLoop: Scenario = {
   name: "crash-loop",
+  // A DNS failure names a missing host. "Connection refused" read like the lab's freshly started Valkey had
+  // restarted, a cause that is not part of this scenario.
   rootCause:
-    "The worker Deployment is crash-looping: each start exits with code 1 because it cannot connect to Redis " +
-    "(connection refused). The api Deployment is healthy.",
+    "The worker Deployment is crash-looping: each start exits with code 1 because the Redis host it is " +
+    "configured with (jobs-redis.app.svc) does not exist (getaddrinfo ENOTFOUND): a wrong or removed address, " +
+    "not a cache outage or restart. The api Deployment is healthy.",
+  symptom: "Background jobs stopped running about ten minutes ago. The API still answers. What's wrong?",
+  fix: "Correct the worker's Redis address (or restore the jobs-redis Service it points to); the worker then recovers.",
+  lookAt: "Deployment/worker: its pod status, its logs and BackOff events.",
   secrets: [REDIS_PASSWORD, DB_PASSWORD],
 
   async break(lab) {
@@ -33,8 +39,8 @@ spec:
             - -c
             - >-
               echo "worker starting, queue=orders";
-              echo "connecting to redis://default:${REDIS_PASSWORD}@redis:6379";
-              echo "fatal: cannot reach redis: connection refused";
+              echo "connecting to redis://default:${REDIS_PASSWORD}@jobs-redis.app.svc:6379";
+              echo "fatal: cannot reach redis: getaddrinfo ENOTFOUND jobs-redis.app.svc";
               exit 1
           env: [{ name: DB_PASSWORD, value: ${DB_PASSWORD} }]
 ---
@@ -93,7 +99,7 @@ spec:
       args: async (lab) => ({ namespace: "app", pod: await firstWorkerPod(lab), previous: true }),
       shows: "the crashed container's last words name Redis as the cause",
       check: ({ json }) => {
-        expect(json.lines.join("\n")).toContain("fatal: cannot reach redis: connection refused");
+        expect(json.lines.join("\n")).toContain("getaddrinfo ENOTFOUND jobs-redis.app.svc");
       },
     },
   ],

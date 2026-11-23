@@ -65,7 +65,8 @@ function problemsOf(row: QueueRow, maxWaitS: number): string[] {
   if (row.counted_ago_s === null) return [NEVER_COUNTED];
 
   const problems: string[] = [];
-  const window = describeSpan(row.delta_seconds ?? 0);
+  // Before pg-boss has counted a first window there is none: "so far", not "in the last 0 seconds".
+  const window = row.delta_seconds === null ? "so far" : `in the last ${describeSpan(row.delta_seconds)}`;
   if (row.counted_ago_s > STALE_AFTER_S) {
     problems.push(
       `these counts are ${describeSpan(row.counted_ago_s)} old: no pg-boss instance is refreshing them ` +
@@ -75,7 +76,7 @@ function problemsOf(row: QueueRow, maxWaitS: number): string[] {
   const idle = row.active_count === 0 && row.completed_delta === 0;
   if (row.ready_count > 0 && idle) {
     problems.push(
-      `${row.ready_count} jobs ready, none active and none completed in the last ${window}: ` +
+      `${row.ready_count} jobs ready, none active and none completed ${window}: ` +
         "nothing is working this queue (worker stopped, crashed or not subscribed)",
     );
   }
@@ -87,7 +88,7 @@ function problemsOf(row: QueueRow, maxWaitS: number): string[] {
   }
   if (row.failed_delta > 0) {
     const ratio = row.failed_delta > row.completed_delta ? ", more than completed" : "";
-    problems.push(`${row.failed_delta} jobs failed in the last ${window}${ratio}`);
+    problems.push(`${row.failed_delta} jobs failed ${window}${ratio}`);
   }
   return problems;
 }

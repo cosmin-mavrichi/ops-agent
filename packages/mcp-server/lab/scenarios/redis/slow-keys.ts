@@ -11,6 +11,9 @@ export const slowKeys: Scenario = {
     `A reporting job runs KEYS over ${ORDERS.toLocaleString("en")} order keys and reads a ` +
     `${REPORT_FIELDS.toLocaleString("en")}-field hash in one HGETALL. The cache runs commands one at a time, so ` +
     "each call stalls every other client; the job should use SCAN and HSCAN.",
+  symptom: "The whole site freezes for a few seconds at a time, several times an hour, every endpoint at once.",
+  fix: "Change the reporting job to use SCAN and HSCAN instead of KEYS and HGETALL.",
+  lookAt: "redis_slowlog.",
   secrets: [REPORT_TOKEN],
 
   async break(lab) {

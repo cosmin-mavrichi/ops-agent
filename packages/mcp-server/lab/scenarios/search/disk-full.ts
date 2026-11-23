@@ -52,6 +52,9 @@ export const searchDiskFull: Scenario = {
   rootCause:
     "The OpenSearch node's data disk is 97% full, past the flood-stage watermark (95%): OpenSearch made the " +
     "products index read-only, so catalog-indexer's writes fail with cluster_block_exception.",
+  symptom: "New products don't show up in search, and the catalog indexer is logging errors.",
+  fix: "Free up or add disk on the OpenSearch node; the read-only block lifts once disk use falls below the high watermark.",
+  lookAt: "search_cluster_health and the catalog-indexer logs.",
   secrets: [ADMIN_PW, DOCUMENT_SECRET],
   search: { engine: "opensearch", dataMb: DATA_MB },
 

@@ -25,6 +25,7 @@ pnpm typecheck
 pnpm test          # unit tests, no dependencies
 pnpm test:int      # integration tests, needs Docker (Testcontainers: postgres:16-alpine, privileged rancher/k3s)
 pnpm lab           # fault lab, needs Docker; one scenario: SCENARIO=crash-loop pnpm lab
+pnpm eval          # agent evals on the lab scenarios, needs Docker and an Anthropic credential; costs money (SCENARIO=a,b for some)
 pnpm build
 ```
 
@@ -51,14 +52,14 @@ Running the server needs `OPS_PG_URL` (connect as the `ops_ro` role); optional `
 
 ## Architecture
 
-**Tools are plain data.** A tool is a `ToolDef` (`src/types.ts`, built with `defineTool`): name, `Level`, model-facing description, a zod shape for input (`z.core.$ZodShape`), optional timeout/output limits, and `run(args, ctx)`. Tools never import adapters; they get everything through `ToolContext` (`pg`, `k8s`, `redis`, `prom`, `signal`, `log`), so unit tests pass fake clients. `src/tools/index.ts` (`allTools`) is the single source of truth for the exposed surface.
+**Tools are plain data.** A tool is a `ToolDef` (`src/types.ts`, built with `defineTool`): name, `Level`, model-facing description, a zod shape for input (`z.core.$ZodShape`), optional timeout/output limits, and `run(args, ctx)`. Tools never import adapters; they get everything through `ToolContext` (`pg`, `k8s`, `redis`, `prom`, `search`, `signal`, `log`), so unit tests pass fake clients. `src/tools/index.ts` (`allTools`) is the single source of truth for the exposed surface.
 
 **The registry owns all safety behaviour** (`src/registry.ts`, `registerTools`). Every call goes validate → timeout → serialize → redact → truncate → audit:
 
 - Tools with `level > maxLevel` are never registered (hidden, not just denied).
 - Input is `z.object(shape).strict()`: unknown keys are rejected. The handler re-validates even though the SDK also validates.
 - Expected failures: tools throw `ToolError(code, message)`; the message is shown to the model (after redaction). Any other error is logged locally and the model only sees `internal_error`, because raw errors can leak hosts/connection strings.
-- All output passes through the redactor (`src/lib/redact.ts`): exact known secrets first, then regex patterns that deliberately over-redact.
+- All output passes through the redactor (`src/lib/redact.ts`): exact known secrets first, then regex patterns that deliberately over-redact. A known secret becomes `[redacted: known secret]` (the system leaked one of its own secrets: a finding the agent should report) and a pattern match becomes `[redacted]` (only looks like a secret); patterns never re-redact a marker. Keep the two distinguishable.
 
 **Entry point** (`src/index.ts`) uses `serveStdio(factory)`, which creates one `McpServer` per connection and serves both the 2025-era protocol and the 2026-07-28 revision. Tool registration happens inside the factory.
 
@@ -82,7 +83,7 @@ Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, whi
 
 `test/harness.ts` starts a real MCP server and client over `InMemoryTransport`, so tests go through the actual protocol (`listTools`/`callTool`). In tool tests use `const harness = useHarness()` at file level and `const h = await harness({...})` per test; it closes the server after each test. Both transport halves must come from the same SDK package.
 
-Tests are grouped by area in both `test/unit/` and `test/integration/`: `core/` (registry, config, limits, redaction), `postgres/`, `k8s/`, `redis/`, `prometheus/`, `search/`; a new adapter gets its own folder in each. Integration tests share container setups: `test/integration/postgres/pg-fixture.ts` (`startPostgres`), `test/integration/redis/redis-fixture.ts` (`startRedis("valkey" | "redis")`, which applies `deploy/redis/ops-ro.acl`), `test/integration/k8s/k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production) , `test/integration/prometheus/prom-fixture.ts` (`startPrometheus(scrapeConfigs)`, plus `serveMetrics` for metrics the test makes up) and `test/integration/search/search-fixture.ts` (`startSearch("opensearch" | "elasticsearch", dataMb)`: security on, the role from `deploy/search/`, data on a tmpfs of a fixed size so the host disk never trips the watermarks). The lab runs a Prometheus per scenario that scrapes the k3s kubelet with its own ServiceAccount (`lab/monitoring.ts`). A scenario that needs a search engine says so (`search: { engine, dataMb }`); only those start one.
+Tests are grouped by area in both `test/unit/` and `test/integration/`: `core/` (registry, config, limits, redaction), `postgres/`, `k8s/`, `redis/`, `prometheus/`, `search/`; a new adapter gets its own folder in each. Integration tests share container setups: `test/integration/postgres/pg-fixture.ts` (`startPostgres`), `test/integration/redis/redis-fixture.ts` (`startRedis("valkey" | "redis")`, which applies `deploy/redis/ops-ro.acl`), `test/integration/k8s/k8s-fixture.ts` (`startK3s`, which applies `deploy/k8s/ops-ro.yaml` and connects with that ServiceAccount's token, as in production), `test/integration/prometheus/prom-fixture.ts` (`startPrometheus(scrapeConfigs)`, plus `serveMetrics` for metrics the test makes up) and `test/integration/search/search-fixture.ts` (`startSearch("opensearch" | "elasticsearch", dataMb)`: security on, the role from `deploy/search/`, data on a tmpfs of a fixed size so the host disk never trips the watermarks). The lab runs a Prometheus per scenario that scrapes the k3s kubelet with its own ServiceAccount (`lab/monitoring.ts`). A scenario that needs a search engine says so (`search: { engine, dataMb }`); only those start one.
 
 Output is redacted per string before serialization (`registry.ts`); redacting the JSON text corrupts it and misses escaped secrets.
 
@@ -93,7 +94,22 @@ Rules for adding a tool:
 - at least one secret planted in its fixture that must not appear in output,
 - updating the inline snapshot in `registry.test.ts` ("real v1 tool list"); it exists so surface changes are deliberate.
 
-**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres + Valkey, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/lab.test.ts`. A scenario's optional `mountedSecrets` are put in a real Secret in `ops`, mounted into a pod, copied out (symlinks included) and read with `readSecretsDir`, exactly the production path; `secrets` is the leak list and can include values nobody gave the agent.
+**Fault lab** (`lab/`): each scenario (`lab/scenarios/<area>/*.ts`, with `security/` for cross-cutting ones like prompt injection) is data: a `rootCause`, planted `secrets`, `break(lab)` that breaks one thing in a fresh k3s + Postgres + Valkey, and `evidence` (tool calls whose output must show the diagnosis; checks are retried because live state flips). The runner also asserts no planted secret appears in any output and saves the outputs, as the model sees them, to `lab/results/` (gitignored). New scenarios go in the `scenarios` list in `lab/scenarios/index.ts` (shared by the lab and the evals) and carry the eval fields too: `symptom`, `fix`, `lookAt` (see `eval/cases.md`). A scenario's optional `mountedSecrets` are put in a real Secret in `ops`, mounted into a pod, copied out (symlinks included) and read with `readSecretsDir`, exactly the production path; `secrets` is the leak list and can include values nobody gave the agent.
+
+**Agent evals** (`eval/`): the lab scenarios again, now with a model. The agent loop (`eval/agent.ts`, a manual Messages API loop over the MCP server's tools, with prompt caching and turn/cost limits) gets only the scenario's `symptom` and writes a short report (root cause, fix, where to look). Guardrails are checked in code (`eval/checks.ts`: only exposed tools, no planted secret anywhere in the conversation, within budget) and fail the run; a judge model grades the report against the scenario's `rootCause`, `fix` and `lookAt` (`eval/judge.ts`, structured output) as a score. The cases and grading are agreed in `eval/cases.md`; change them there first. Backends (`eval/config.ts`, `EVAL_BACKEND`): `claude-code` (default: headless `claude -p` on the developer's own login, with settings, hooks, built-in tools and other MCP servers off, against the real built server, `dist/src/index.js`, configured from `lab.serverEnv`), `anthropic` (`ANTHROPIC_API_KEY`) and `deepseek` (`DEEPSEEK_API_KEY`, its Anthropic-format API). Keys live only in the repo-root `.env` (gitignored; template in `.env.example`) and are withheld from Claude Code and the server. Agent and judge default to Claude Haiku 5.5 (deepseek-flash on DeepSeek; `EVAL_MODEL`, `EVAL_JUDGE_MODEL`); prices live in `eval/pricing.ts`, and a model without a price fails rather than costing $0. Results go to `eval/results/<run>/` (gitignored).
+
+**Evals cost money: never in CI** (`loadEvalConfig` refuses when `CI` is set) **and never all scenarios by accident**: it refuses without `SCENARIO=a,b` unless `EVAL_ALL=1`. After adding or changing a scenario, run only that one; run them all only when the owner asks.
+
+**When a scenario fails, read its trace first** (`eval/results/<run>/traces/<scenario>.json`, plus `report.md`). In the pilot most failures were the test, not the agent, and the fix belongs in the scenario or its expected answer:
+
+- **Lab artifacts the agent blames:** every service is freshly started (seconds of uptime read as a restart) and every pod runs a placeholder busybox image (read as a wrong build). `LAB_NOTE` in `eval/backends.ts` tells the agent both are normal; extend it rather than working around a new artifact elsewhere.
+- **Ambiguous evidence:** a scenario must point to one cause. If its own setup produces a second plausible story (an error line, a still-terminating pod, an unworked queue), change the setup, or make `break()` wait for the settled state, as the incident would look by the time someone reports it.
+- **Expected answers ask only for what the tools can observe.** Not what they hide on purpose (SQL comments `pg_activity` strips, secrets, other namespaces), nor causes the agent cannot tell apart from what it sees ("unreachable", not "does not exist").
+- **Test problems get fixed, not accepted.** A wrong grade with a known cause is a bug in the eval. After a fix, rerun only that scenario, then the free `SCENARIO=<name> pnpm lab`.
+
+Status, latest results and the open items: `docs/eval-status.md`. Update it when results or open items change.
+
+On Windows, tests and scenarios that copy Kubernetes Secret volumes (`test/unit/core/known-secrets.test.ts`, the `app-secret-in-logs` scenario) need Developer Mode, for symlinks.
 
 Planned work and the backlog live in `ROADMAP.md`. Update its status column and backlog in the same branch as the work.
 

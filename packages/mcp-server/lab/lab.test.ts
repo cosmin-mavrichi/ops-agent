@@ -5,41 +5,11 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { Lab, Scenario, ToolResult } from "./scenario.js";
+import type { Lab, ToolResult } from "./scenario.js";
 import { startLab } from "./scenario.js";
-import { crashLoop } from "./scenarios/k8s/crash-loop.js";
-import { expiringCertificate } from "./scenarios/k8s/expiring-certificate.js";
-import { volumeFull } from "./scenarios/k8s/volume-full.js";
-import { failingBackups } from "./scenarios/postgres/failing-backups.js";
-import { lockContention } from "./scenarios/postgres/lock-contention.js";
-import { pausedWorker } from "./scenarios/postgres/paused-worker.js";
-import { cacheFull } from "./scenarios/redis/cache-full.js";
-import { slowKeys } from "./scenarios/redis/slow-keys.js";
-import { searchDiskFull } from "./scenarios/search/disk-full.js";
-import { searchRejections } from "./scenarios/search/rejections.js";
-import { appSecretInLogs } from "./scenarios/security/app-secret-in-logs.js";
-import { promptInjection } from "./scenarios/security/prompt-injection.js";
+import { selectScenarios } from "./scenarios/index.js";
 
-const scenarios: readonly Scenario[] = [
-  crashLoop,
-  expiringCertificate,
-  volumeFull,
-  failingBackups,
-  lockContention,
-  pausedWorker,
-  cacheFull,
-  slowKeys,
-  searchDiskFull,
-  searchRejections,
-  promptInjection,
-  appSecretInLogs,
-];
-
-const only = process.env.SCENARIO;
-const selected = only ? scenarios.filter((s) => s.name === only) : scenarios;
-if (selected.length === 0) {
-  throw new Error(`unknown SCENARIO "${only}"; available: ${scenarios.map((s) => s.name).join(", ")}`);
-}
+const selected = selectScenarios(process.env.SCENARIO);
 
 const RESULTS_DIR = new URL("./results/", import.meta.url);
 

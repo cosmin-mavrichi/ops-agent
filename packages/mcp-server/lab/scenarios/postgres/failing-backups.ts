@@ -36,9 +36,15 @@ const jsonpath = (lab: Lab, resource: string, path: string) =>
 
 export const failingBackups: Scenario = {
   name: "failing-backups",
+  // The agent sees "could not connect to the endpoint URL" and cannot inspect the backup namespace, so it can only
+  // tell that the endpoint is unreachable, not that it does not exist; the expected answer asks for what it can see.
   rootCause:
-    "The app-db Postgres cluster backs up to an object store endpoint (minio.backup.svc) that does not exist: " +
+    "The app-db Postgres cluster backs up to an object store endpoint (minio.backup.svc) that cannot be reached: " +
     "WAL archiving fails and no backup has ever completed, so the database cannot be restored.",
+  symptom:
+    "An auditor asks whether we could restore the app database to yesterday if we had to. Check before we answer.",
+  fix: "Point the backups at a reachable object store (or bring the endpoint back), then take and verify a backup.",
+  lookAt: "Cluster app-db and its backups (k8s_pg_backups), the app-db-1 logs.",
   secrets: [S3_SECRET_KEY],
 
   async break(lab) {

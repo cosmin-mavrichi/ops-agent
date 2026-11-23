@@ -42,6 +42,9 @@ export const searchRejections: Scenario = {
   rootCause:
     "The OpenSearch node is undersized for the storefront's search load (one search thread, a one-slot queue): " +
     "it rejects searches with 429 rejected_execution_exception, so storefront searches fail.",
+  symptom: "Storefront search fails now and then under traffic; some searches return errors.",
+  fix: "Add search capacity (a bigger node or more nodes) or reduce the search load.",
+  lookAt: "search_node_pressure and the storefront logs.",
   secrets: [ADMIN_PW, DOCUMENT_SECRET],
   // Stands in for a node too small for its traffic: the same rejections, without generating that much load.
   search: { engine: "opensearch", settings: { "thread_pool.search.size": "1", "thread_pool.search.queue_size": "1" } },

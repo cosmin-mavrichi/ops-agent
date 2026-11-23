@@ -12,6 +12,16 @@ npm i -g pnpm@12   # once per Node version (Node 26 has no corepack)
 pnpm install       # from the repo root; it is a pnpm workspace
 ```
 
+### Agent evals (optional)
+
+`pnpm eval` runs the agent on the lab scenarios (needs Docker). By default it uses headless Claude Code on your own
+login, so it needs no key. To use an API instead, copy `.env.example` to `.env` in the repo root and fill in the key
+for the backend you pick; `.env` is gitignored. Each run costs money or subscription usage, so name the scenarios:
+
+```
+SCENARIO=crash-loop pnpm eval
+```
+
 ## Configuration
 
 All settings are environment variables. stdout is the MCP channel; logs go to stderr.
@@ -94,7 +104,7 @@ deploy/search/           monitor-only roles for OpenSearch and Elasticsearch (no
 | 1. Unit        | `pnpm test`                       | nothing          | gating, input validation, redaction, timeouts, error hiding, SQL whitelisting                                       |
 | 2. Integration | `pnpm test:int`                   | Docker           | each tool against the real service in a throwaway container (Testcontainers)                                        |
 | 3. Fault lab   | `pnpm lab` (`SCENARIO=…` for one) | Docker           | break one thing in a fresh k3s + Postgres + Valkey; the tools must surface the evidence, no planted secret may leak |
-| 4. Agent evals | `pnpm eval` (later)               | Docker + API key | the model finds the root cause, uses only allowed tools, stays under budget                                         |
+| 4. Agent evals | `pnpm eval` (`SCENARIO=a,b`)      | Docker + API key | the model finds the root cause, uses only allowed tools, stays under budget                                         |
 
 Rule for adding a tool: unit test with a fake adapter + integration test against the real
 service + at least one secret planted in its fixture that must not come out.

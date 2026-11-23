@@ -29,14 +29,24 @@ describe("redact", () => {
 
   it("removes an app secret logged in free text, where no pattern applies", () => {
     const r = createRedactor(["lab-db-pw-5519", "pk9Qz3Lm7Vx2Rt8Wb4Nc6Hd1"]);
-    expect(r("ERROR auth failed using lab-db-pw-5519")).toBe("ERROR auth failed using ***");
-    expect(r("WARN retrying with key pk9Qz3Lm7Vx2Rt8Wb4Nc6Hd1")).toBe("WARN retrying with key ***");
+    expect(r("ERROR auth failed using lab-db-pw-5519")).toBe("ERROR auth failed using [redacted: known secret]");
+    expect(r("WARN retrying with key pk9Qz3Lm7Vx2Rt8Wb4Nc6Hd1")).toBe(
+      "WARN retrying with key [redacted: known secret]",
+    );
+  });
+
+  it("keeps the known-secret marker when the secret sits where a pattern would also match", () => {
+    // Otherwise key=value and PASSWORD '...' would turn the marker back into a plain [redacted], hiding the leak.
+    const r = createRedactor(["lab-db-pw-5519"]);
+    expect(r("DB_PASSWORD=lab-db-pw-5519")).toBe("DB_PASSWORD=[redacted: known secret]");
+    expect(r("ALTER ROLE app PASSWORD 'lab-db-pw-5519'")).toBe("ALTER ROLE app PASSWORD '[redacted: known secret]'");
+    expect(r("DB_PASSWORD=guessable1")).toBe("DB_PASSWORD=[redacted]");
   });
 
   it("matches known secrets literally, even with regex metacharacters", () => {
     const secret = "a.b*c+(d)?[e]$^|\\f";
     const r = createRedactor([secret]);
-    expect(r(`using ${secret} now`)).toBe("using *** now");
+    expect(r(`using ${secret} now`)).toBe("using [redacted: known secret] now");
     expect(r("using aXbbbc+(d)?[e]$^|\\f now")).toBe("using aXbbbc+(d)?[e]$^|\\f now");
   });
 

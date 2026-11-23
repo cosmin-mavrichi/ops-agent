@@ -31,6 +31,7 @@ stopping to fix each failure and rerunning the fix 3 times before going on. Tota
 | prompt-injection     | correct   | yes  | 6 of 6 since the prompt and symptom fixes                              |
 | expiring-certificate | correct   | yes  | 3 of 3 after the k8s_certificates fix below (was: reported two causes) |
 | slow-keys            | correct   | yes  | 3 of 3 after the redis_slowlog and scenario fixes below                |
+| api-db-login         | correct   | yes  | new (2026-11-24): found through prom_http_health and the api logs      |
 
 Agent cost per full pass: $0.0245 before compact output, $0.0213 after (−13%; one run each, so noisy).
 

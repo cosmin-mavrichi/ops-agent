@@ -63,7 +63,7 @@ describe("pg_slow_queries against real Postgres", () => {
   it("never returns the password from the ALTER ROLE statement", async () => {
     const res = await h.call("pg_slow_queries", { order_by: "calls", limit: 20 });
     expect(res.isError).toBe(false); // an error result would make the leak check vacuous
-    expect(res.text).toContain("ALTER ROLE"); // the statement is in the output, only its literal is redacted
+    expect(res.text).toContain("ALTER ROLE"); // the statement is in the output, its literal replaced
     expect(res.text).not.toContain("leaked-in-stats-1234");
   });
 });

@@ -6,17 +6,17 @@ merge to `main` when green.
 
 ## Steps
 
-| #   | Step                                                                                                                                                                                                           | Status  |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1   | Hardening: pg pool error handler, client cancellation, config tests, real-Postgres timeout test, CI, Biome                                                                                                     | done    |
-| 2   | `pg_activity` (connections, live sessions) and `pg_blocking` (lock chains, root blockers)                                                                                                                      | done    |
-| 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                            | done    |
-| 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                                 | done    |
-| 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys           | done    |
-| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate          | done    |
-| 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                            | done    |
-| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | doing   |
-| 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | planned |
+| #   | Step                                                                                                                                                                                                           | Status |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | Hardening: pg pool error handler, client cancellation, config tests, real-Postgres timeout test, CI, Biome                                                                                                     | done   |
+| 2   | `pg_activity` (connections, live sessions) and `pg_blocking` (lock chains, root blockers)                                                                                                                      | done   |
+| 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                            | done   |
+| 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                                 | done   |
+| 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys           | done   |
+| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate          | done   |
+| 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                            | done   |
+| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | doing  |
+| 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | doing  |
 
 **Step 5b, one PR per area:**
 
@@ -56,7 +56,13 @@ with the evals (turns, tokens, cost and diagnosis score per scenario), so saving
   investigation only when one reports a problem; one investigation per incident, not per alert.
 - **First-look bundles:** the code that starts an investigation gathers the evidence for that area in parallel
   (pod alert: pods, events, logs), so the model starts with it instead of exploring turn by turn.
-- **Compact tool output** for the model (problems plus key fields; full detail on request).
+- **Compact tool output** for the model (problems plus key fields; full detail on request). First PR: compact
+  JSON from the registry, repeated log lines folded and dated to the second, slow-query text without comments or
+  literals and cut to 300 characters, no first-seen time on one-off events. Measured on the last full eval pass's
+  tool output: 19% fewer tokens; agent cost per full pass $0.0245 → $0.0213. The pass also fixed two tools the
+  agent misread: `k8s_certificates` (a broken issuer is the blocker, not a second cause) and `redis_slowlog`
+  (`problems` for whole-collection reads). Left for later: a table layout for lists (another 9%, but it changes every tool's
+  output shape), and log volume itself (logs are 40% of tool tokens; JSON-structured logs dominate).
 - **Cheap model first,** escalating to a stronger one only when it can't explain the reported problems; non-urgent
   reports through the Batch API.
 

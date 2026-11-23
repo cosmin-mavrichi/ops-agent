@@ -104,11 +104,12 @@ function describeIssues(error: z.ZodError): string {
 
 /**
  * Redacts each string before serializing: redacting the JSON text can swallow a closing quote,
- * and misses secrets that JSON escapes.
+ * and misses secrets that JSON escapes. No indentation: the model reads compact JSON as well, and
+ * indentation was about an eighth of the tokens it paid for.
  */
 function serializeRedacted(data: unknown, redact: Redactor): string {
   const redactStrings = (_key: string, value: unknown) => (typeof value === "string" ? redact(value) : value);
-  return JSON.stringify(data, redactStrings, 2);
+  return JSON.stringify(data, redactStrings);
 }
 
 interface Failure {

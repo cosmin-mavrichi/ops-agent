@@ -82,7 +82,7 @@ export const expiringCertificate: Scenario = {
         const apiTls = json.certificates.find((cert: { name: string }) => cert.name === "api-tls");
         expect(apiTls).toMatchObject({ ready: false, issuer: { ref: "Issuer/internal-ca", ready: false } });
         const problems = apiTls.problems.join("\n");
-        expect(problems).toMatch(/expires in [\d.]+ hours/);
+        expect(problems).toMatch(/expires in \d+ minutes/);
         expect(problems).toContain("ca-key");
       },
     },

@@ -21,6 +21,13 @@ describe("summarizeEvents", () => {
     ]);
   });
 
+  it("gives a first-seen time only for events that repeated", () => {
+    const [repeated, once] = summarizeEvents([event("BackOff", "worker", 10, 3), event("Killing", "api", 20)], NOW, 60);
+    expect(repeated).toMatchObject({ count: 3, last_seen_ago_s: 10, first_seen_ago_s: 110 });
+    expect(once).toMatchObject({ count: 1, last_seen_ago_s: 20 });
+    expect(once).not.toHaveProperty("first_seen_ago_s");
+  });
+
   it("drops events older than the window and sorts newest first", () => {
     const events = [event("Old", "a", 7_200), event("Unhealthy", "b", 300), event("BackOff", "c", 5)];
     expect(summarizeEvents(events, NOW, 60).map((e) => e.reason)).toEqual(["BackOff", "Unhealthy"]);

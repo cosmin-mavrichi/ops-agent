@@ -99,6 +99,11 @@ describe("call pipeline", () => {
     expect(res.json).toEqual({ msg: "API_KEY=[redacted]" });
   });
 
+  it("returns compact JSON, without indentation", async () => {
+    const h = await harness({ tools: [echo] });
+    expect((await h.call("echo", { msg: "hi" })).text).toBe('{"msg":"hi"}');
+  });
+
   it("finds known secrets that JSON would escape", async () => {
     const secret = 'pa"ss\\word99';
     const h = await harness({ tools: [echo], knownSecrets: [secret] });

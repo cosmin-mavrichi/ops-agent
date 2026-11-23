@@ -77,7 +77,9 @@ Tools declare the adapters they need (`requires`); `toolsFor` in `src/tools/inde
 
 `src/tools/postgres/slow-queries.ts` (`pg_slow_queries`) is the reference tool; copy its shape for new tools. Tool sources are grouped by adapter (`src/tools/postgres/`, `src/tools/k8s/`, `src/tools/redis/`, `src/tools/prometheus/`, `src/tools/search/`), one file per tool or close pair, plus a `shared.ts` for helpers they share.
 
-Query text from `pg_stat_activity` is verbatim (unlike `pg_stat_statements`, which normalizes it), so it must go through `stripLiterals` (`src/lib/sql-text.ts`) before it is returned: literals can hold user data or secrets, and comments can carry text aimed at the model. `src/tools/postgres/shared.ts` (`toSession`, used by `pg_activity` and `pg_blocking`) does this.
+Query text from `pg_stat_activity` is verbatim, and `pg_stat_statements` normalizes literals but keeps comments and the literals of utility statements (`ALTER ROLE ... PASSWORD '...'`), so all query text must go through `stripLiterals` (`src/lib/sql-text.ts`) before it is returned: literals can hold user data or secrets, and comments can carry text aimed at the model. `src/tools/postgres/shared.ts` (`toSession`, used by `pg_activity` and `pg_blocking`) and `shownQueryText` (`pg_slow_queries`) do this.
+
+Tool output is compact for the model: the registry serializes without indentation, and tools drop what costs tokens without carrying evidence (`k8s_logs` folds consecutive repeated lines and dates lines to the second; `pg_slow_queries` cuts statements to their first 300 characters, safe only after `stripLiterals`). Measure a change against the eval traces' token counts before and after.
 
 ## Tests
 

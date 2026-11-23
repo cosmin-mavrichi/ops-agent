@@ -93,9 +93,19 @@ interface Timing {
   readonly overdueS: number | null;
 }
 
+/**
+ * A broken issuer blocks every request, whatever the certificate's own reason says (e.g. RequestChanged after a
+ * DNS name change only means a new request is due). Saying so keeps the model from reporting two causes.
+ */
+function notReadyProblem({ reason, message, issuer }: ReadyState): string {
+  const own = `not Ready (${reason ?? "no reason"}): ${message ?? "no message"}`;
+  if (issuer.ready !== false) return own;
+  return `${own}; it cannot be issued until its issuer ${issuer.ref} is Ready`;
+}
+
 /** The conclusions an operator would draw first, spelled out so the model doesn't have to. */
 function problemsOf(state: ReadyState, timing: Timing): string[] {
-  const { ready, reason, message, issuer } = state;
+  const { ready, issuer } = state;
   const { secondsLeft, overdueS } = timing;
   const expired = secondsLeft !== null && secondsLeft <= 0;
   const expiresSoon = secondsLeft !== null && !expired && secondsLeft < EXPIRY_WARNING_DAYS * DAY_S;
@@ -103,9 +113,13 @@ function problemsOf(state: ReadyState, timing: Timing): string[] {
 
   if (expired) problems.push(`expired ${describeSpan(-secondsLeft)} ago`);
   if (expiresSoon) problems.push(`expires in ${describeSpan(secondsLeft)}`);
-  if (ready === false) problems.push(`not Ready (${reason ?? "no reason"}): ${message ?? "no message"}`);
+  if (ready === false) problems.push(notReadyProblem(state));
   if (overdueS !== null) problems.push(`renewal was due ${describeSpan(overdueS)} ago and has not happened`);
-  if (issuer.ready === false) problems.push(`its issuer ${issuer.ref} is not Ready: ${issuer.message ?? "no message"}`);
+  if (issuer.ready === false) {
+    problems.push(
+      `its issuer ${issuer.ref} is not Ready, which blocks issuing and renewing it: ${issuer.message ?? "no message"}`,
+    );
+  }
 
   return problems;
 }

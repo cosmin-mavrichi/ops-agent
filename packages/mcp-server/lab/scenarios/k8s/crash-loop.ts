@@ -73,6 +73,16 @@ spec:
 
   evidence: [
     {
+      tool: "ops_triage",
+      shows: "one call points at the crash-looping worker and the restart back-off, and not at the api",
+      check: ({ json }) => {
+        const pods = json.problems.k8s_pods.join("\n");
+        expect(pods).toMatch(/worker-.*last exited 1 \(Error\)/);
+        expect(pods).not.toContain("api-");
+        expect(json.problems.k8s_events.join("\n")).toMatch(/^BackOff on Pod\/worker-/m);
+      },
+    },
+    {
       tool: "k8s_pods",
       shows: "the worker is unhealthy and keeps exiting with code 1, while the api is fine",
       check: ({ json }) => {

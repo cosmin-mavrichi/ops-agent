@@ -5,6 +5,7 @@ import { afterEach } from "vitest";
 import { createRedactor } from "../src/lib/redact.js";
 import { type AuditEntry, registerTools } from "../src/registry.js";
 import {
+  type Adapter,
   type K8sClient,
   Level,
   type PromClient,
@@ -38,6 +39,7 @@ export async function startHarness(opts: HarnessOptions) {
     maxLevel: opts.maxLevel ?? Level.Read,
     redact: createRedactor(opts.knownSecrets ?? []),
     context: (signal) => ({
+      adapters: adaptersGiven(opts),
       pg: opts.pg ?? missingPg,
       k8s: opts.k8s ?? missingK8s,
       redis: opts.redis ?? missingRedis,
@@ -69,6 +71,18 @@ export async function startHarness(opts: HarnessOptions) {
       await server.close();
     },
   };
+}
+
+/** The adapters a test passed fakes or real clients for; the rest stay missing, as when unconfigured. */
+function adaptersGiven(opts: HarnessOptions): Adapter[] {
+  const given: Record<Adapter, unknown> = {
+    pg: opts.pg,
+    k8s: opts.k8s,
+    redis: opts.redis,
+    prom: opts.prom,
+    search: opts.search,
+  };
+  return (Object.keys(given) as Adapter[]).filter((adapter) => given[adapter] !== undefined);
 }
 
 /** Starts a harness inside a test and closes it after that test. */

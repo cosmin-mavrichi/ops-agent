@@ -145,9 +145,6 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Watcher reports to a webhook.** Later, not a priority: POST each report as JSON to a configured URL (Slack
   incoming webhook, ntfy, Discord, own endpoint). Reports are log and file only for now (`docs/watcher.md`); note
   that a webhook sends report text out of the cluster.
-- **Error-rate and latency checks for the app.** `ops_triage` watches status, not logs, so an app that returns 500s
-  or gets slow without crashing or failing a probe goes unnoticed. Add a triage check (code only, still free): error
-  rate and latency from Prometheus when the app exposes HTTP metrics, or a count of ERROR lines in recent logs.
 - **Watcher state across restarts.** Incidents live in memory, so a restart re-investigates every open problem once
   (bounded by the hourly cap). Persist the open incidents next to the report file if that turns out to cost money.
 
@@ -175,6 +172,11 @@ Smaller items, not tied to a step. Move into a step when picked up.
 
 ## Decisions
 
+- **App errors and latency from Prometheus** (2026-11-24). `ops_triage` watched status only, so an app returning
+  500s or slowing down without crashing went unnoticed. `prom_http_health` reads the request duration histogram
+  in its two common namings (OpenTelemetry, prom-client) rather than counting ERROR lines in logs: rates and
+  percentiles are exact and cheap, and log formats vary per app. An app is flagged above the operator's limits
+  (`OPS_HTTP_*`) or when much worse than over the day before the last hour. Lab scenario api-db-login.
 - **Disk usage from Prometheus, not the kubelet** (2026-11-22). Volume usage is only exposed by the kubelet, and
   reading it needs `nodes/proxy`, which can also be used to exec into pods. A Prometheus-compatible query API
   (Prometheus, VictoriaMetrics, Mimir, Thanos) gives `kubelet_volume_stats_*` with no dangerous RBAC.

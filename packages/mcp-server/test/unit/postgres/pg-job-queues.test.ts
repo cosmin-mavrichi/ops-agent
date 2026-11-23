@@ -58,6 +58,11 @@ describe("summarizeQueue", () => {
     expect(summarizeQueue(FAILING, 600).problems).toEqual(["40 jobs failed in the last 1 minute, more than completed"]);
   });
 
+  it('says "so far" before pg-boss has counted a first window, not "in the last 0 seconds"', () => {
+    const fresh = { ...STALLED, delta_seconds: null, ready_oldest_seconds: null };
+    expect(summarizeQueue(fresh, 600).problems[0]).toMatch(/^1200 jobs ready, none active and none completed so far: /);
+  });
+
   it("finds nothing wrong with a queue that is being worked", () => {
     expect(summarizeQueue(HEALTHY, 600).problems).toEqual([]);
   });

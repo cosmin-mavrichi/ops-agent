@@ -16,6 +16,9 @@ export interface K3sFixture {
   connect(overrides?: Partial<K8sConfig>): K8sClient;
   /** The ServiceAccount token, for leak checks. */
   token: string;
+  /** API server URL and CA, for running the real MCP server against this cluster (the eval does). */
+  server: string;
+  ca: string;
   kubectl(...args: string[]): Promise<string>;
   apply(yaml: string): Promise<void>;
   /** Polls a jsonpath on an object until `done` accepts the value. */
@@ -61,6 +64,8 @@ export async function startK3s(): Promise<K3sFixture> {
   return {
     container,
     token,
+    server,
+    ca,
     ops: connect(),
     connect,
     kubectl,

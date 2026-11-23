@@ -10,6 +10,9 @@ export const cacheFull: Scenario = {
   rootCause:
     "The cache (Valkey) is at its 2 MB maxmemory with policy noeviction, so it refuses every write with OOM " +
     "errors instead of evicting old keys. The checkout service's session writes fail.",
+  symptom: "Checkout fails for everyone: users get logged out or can't keep a session.",
+  fix: "Raise maxmemory or switch to an evicting policy such as allkeys-lru.",
+  lookAt: "redis_health (memory, policy, OOM rejections).",
   secrets: [SESSION_TOKEN, CARD_TOKEN],
 
   async break(lab) {

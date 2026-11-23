@@ -5,3 +5,5 @@ dist
 .idea/
 *.log
 packages/mcp-server/lab/results/
+packages/mcp-server/eval/results/
+!.env.example

@@ -11,7 +11,8 @@
     "start": "node dist/src/index.js",
     "test": "vitest run test/unit",
     "test:int": "vitest run test/integration",
-    "lab": "vitest run lab --no-file-parallelism --reporter=verbose"
+    "lab": "vitest run lab --no-file-parallelism --reporter=verbose",
+    "eval": "tsc -p . && vitest run eval/eval.test.ts --reporter=verbose"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
     "@modelcontextprotocol/client": "^2.4.0",
     "@testcontainers/k3s": "12.2.1",
     "@testcontainers/postgresql": "^12.2.1",

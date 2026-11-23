@@ -1,4 +1,7 @@
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Tool } from "@modelcontextprotocol/client";
 import { createPgClient } from "../src/adapters/pg.js";
 import { createPromClient } from "../src/adapters/prometheus.js";
 import { createRedisClient } from "../src/adapters/redis.js";
@@ -36,6 +39,12 @@ export interface Scenario {
   readonly name: string;
   /** The diagnosis a good agent reaches; the evals (roadmap step 6) grade against it. */
   readonly rootCause: string;
+  /** What an on-call person would report; the only thing the eval's agent is told (eval/cases.md). */
+  readonly symptom: string;
+  /** What a correct report proposes, or "nothing to fix". */
+  readonly fix: string;
+  /** The resources and tool outputs that show the cause. */
+  readonly lookAt: string;
   /** Values planted in the scenario that must never appear in any tool output. */
   readonly secrets: readonly string[];
   /**
@@ -59,6 +68,10 @@ export interface Lab {
   /** Only when the scenario asked for one. */
   readonly search: SearchFixture | undefined;
   call(tool: string, args?: Record<string, unknown>): Promise<ToolResult>;
+  /** The tools the server exposes, as the MCP client lists them (name, description, input schema). */
+  listTools(): Promise<Tool[]>;
+  /** Environment for running the real server (dist/src/index.js) against this lab, as production configures it. */
+  readonly serverEnv: Readonly<Record<string, string>>;
   /** Registers cleanup that must run before the containers stop (e.g. closing app sessions). */
   onStop(cleanup: () => Promise<unknown>): void;
   stop(): Promise<void>;
@@ -74,6 +87,8 @@ export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
     startRedis("valkey"),
     searchStarting,
   ]);
+  // The fixture's own setup (CREATE ROLE ... PASSWORD) is not part of any incident; left in, the agent reports it.
+  await db.admin.query("SELECT pg_stat_statements_reset()");
   const pg = createPgClient({ connectionString: db.opsUrl, onError: () => {} });
   const [appSecrets, monitoring] = await Promise.all([
     readMountedSecrets(k3s, needs.mountedSecrets ?? {}),
@@ -91,6 +106,8 @@ export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
     knownSecrets: [OPS_PW, k3s.token, OPS_REDIS_PW, OPS_SEARCH_PW, monitoring.token, ...appSecrets],
   });
   const cleanups: Array<() => Promise<unknown>> = [];
+  const serverConfig = writeServerConfig({ k3s, db, cache, search, promUrl: monitoring.prometheus.url });
+  const knownSecrets = [k3s.token, monitoring.token, ...appSecrets];
 
   return {
     k3s,
@@ -98,14 +115,45 @@ export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
     cache,
     search,
     call: (tool, args = {}) => harness.call(tool, args),
+    listTools: async () => (await harness.client.listTools()).tools,
+    serverEnv: { ...serverConfig.env, OPS_KNOWN_SECRETS: knownSecrets.join(",") },
     onStop: (cleanup) => cleanups.push(cleanup),
     async stop() {
       for (const cleanup of cleanups.toReversed()) await cleanup().catch(() => undefined);
       await harness.close();
       await pg.end();
+      rmSync(serverConfig.dir, { recursive: true, force: true });
       await Promise.all([monitoring.prometheus.stop(), k3s.stop(), db.stop(), cache.stop(), search?.stop()]);
     },
   };
+}
+
+interface ServerTargets {
+  readonly k3s: K3sFixture;
+  readonly db: PgFixture;
+  readonly cache: RedisFixture;
+  readonly search: SearchFixture | undefined;
+  readonly promUrl: string;
+}
+
+/** The server reads the Kubernetes token and CA from files, as in a pod; they go to a temp dir. */
+function writeServerConfig(targets: ServerTargets): { dir: string; env: Record<string, string> } {
+  const dir = mkdtempSync(join(tmpdir(), "ops-lab-server-"));
+  const tokenFile = join(dir, "token");
+  const caFile = join(dir, "ca.crt");
+  writeFileSync(tokenFile, targets.k3s.token);
+  writeFileSync(caFile, targets.k3s.ca);
+  const env: Record<string, string> = {
+    OPS_PG_URL: targets.db.opsUrl,
+    OPS_K8S_NAMESPACES: targets.k3s.ops.namespaces.join(","),
+    OPS_K8S_SERVER: targets.k3s.server,
+    OPS_K8S_TOKEN_FILE: tokenFile,
+    OPS_K8S_CA_FILE: caFile,
+    OPS_REDIS_URL: targets.cache.opsUrl,
+    OPS_PROM_URL: targets.promUrl,
+  };
+  if (targets.search) env.OPS_SEARCH_URL = targets.search.opsUrl;
+  return { dir, env };
 }
 
 // Each name appears in several manifest fields that must agree; a mismatch only shows as a 150s wait timeout.

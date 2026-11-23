@@ -44,24 +44,32 @@ async function startApi(lab: Lab): Promise<PgBoss> {
 }
 
 type QueueJson = { queues: Array<{ name: string; ready: number; problems: string[] }> };
-const exportsQueue = (json: QueueJson) => json.queues.find((queue) => queue.name === "exports");
+const queueNamed = (json: QueueJson, name: string) => json.queues.find((queue) => queue.name === name);
+const exportsQueue = (json: QueueJson) => queueNamed(json, "exports");
 
 export const pausedWorker: Scenario = {
   name: "paused-worker",
   rootCause:
     "The export-worker Deployment was scaled to 0, so nothing works the pg-boss exports queue: its jobs pile " +
     "up while the emails queue, worked by the API, stays healthy.",
+  symptom: "Customers say their data exports never arrive. Emails still go out fine.",
+  fix: "Scale export-worker back up.",
+  lookAt: "The exports queue in pg_job_queues and the scale-down event for export-worker.",
   secrets: [PAYLOAD_SECRET],
 
   async break(lab) {
     await lab.k3s.apply(WORKER);
     await lab.k3s.kubectl("rollout", "status", "deployment/export-worker", "-n", "app", "--timeout=150s");
     await lab.k3s.kubectl("scale", "deployment/export-worker", "-n", "app", "--replicas=0");
+    // By the time customers notice, the old pod is gone and the API has sent the emails: wait for that state,
+    // or a still-terminating pod and an unworked emails queue tell a different story.
+    await lab.k3s.kubectl("wait", "--for=delete", "pod", "-l", "app=export-worker", "-n", "app", "--timeout=120s");
     await startApi(lab);
     await lab.db.admin.query(GRANTS);
-    await until("pg-boss to count the exports backlog", async () => {
+    await until("the exports backlog to be counted and the emails sent", async () => {
       const { json } = await lab.call("pg_job_queues");
       expect(exportsQueue(json)?.ready).toBe(EXPORT_JOBS);
+      expect(queueNamed(json, "emails")?.ready).toBe(0);
     });
   },
 

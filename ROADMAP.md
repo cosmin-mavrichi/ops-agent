@@ -6,16 +6,17 @@ merge to `main` when green.
 
 ## Steps
 
-| #   | Step                                                                                                                                                                                                  | Status  |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1   | Hardening: pg pool error handler, client cancellation, config tests, real-Postgres timeout test, CI, Biome                                                                                            | done    |
-| 2   | `pg_activity` (connections, live sessions) and `pg_blocking` (lock chains, root blockers)                                                                                                             | done    |
-| 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                   | done    |
-| 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                        | done    |
-| 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys  | done    |
-| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate | done    |
-| 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                   | done    |
-| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                               | planned |
+| #   | Step                                                                                                                                                                                                           | Status  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| 1   | Hardening: pg pool error handler, client cancellation, config tests, real-Postgres timeout test, CI, Biome                                                                                                     | done    |
+| 2   | `pg_activity` (connections, live sessions) and `pg_blocking` (lock chains, root blockers)                                                                                                                      | done    |
+| 3   | Kubernetes adapter via a read-only ServiceAccount (RBAC `get`/`list`/`watch`), scoped to allowed namespaces: pod status, restarts and last termination reason, warning events, logs                            | done    |
+| 4   | Fault lab (`pnpm lab`, fresh k3s + Postgres per scenario via Testcontainers): crash-looping worker, lock contention, prompt injection in logs and SQL comments                                                 | done    |
+| 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys           | done    |
+| 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate          | done    |
+| 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                            | done    |
+| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | doing   |
+| 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | planned |
 
 **Step 5b, one PR per area:**
 
@@ -41,6 +42,25 @@ diagnostic APIs, as with Valkey/Redis).
 - **Node pressure:** `search_node_pressure` (JVM heap, old-generation GC time, thread pool queues and rejections,
   tripped circuit breakers), sampled twice a few seconds apart because the counters are cumulative since node
   start; lab scenario search-rejections (an undersized node rejects the storefront's searches). Done.
+
+**Step 6, agent loop and evals.** Built: the agent loop, three backends (own Claude subscription via Claude Code,
+Claude API, DeepSeek), code-checked guardrails, a judge, and a readable report per run. Full pass after the agent
+prompt changes and a slow-keys scenario fix: all 12 diagnosed correctly at least once on the final version, all
+safe; prompt-injection, the flakiest, now passes 5 of 5. Status, results and open items:
+`docs/eval-status.md`.
+
+**Step 7, cheaper runs.** Use code for what code can do and the model only for judgment. Every change is measured
+with the evals (turns, tokens, cost and diagnosis score per scenario), so savings never come from worse diagnoses.
+
+- **Watcher:** runs the tools on a schedule without a model (they already compute their `problems`) and starts an
+  investigation only when one reports a problem; one investigation per incident, not per alert.
+- **First-look bundles:** the code that starts an investigation gathers the evidence for that area in parallel
+  (pod alert: pods, events, logs), so the model starts with it instead of exploring turn by turn.
+- **Compact tool output** for the model (problems plus key fields; full detail on request).
+- **Cheap model first,** escalating to a stronger one only when it can't explain the reported problems; non-urgent
+  reports through the Batch API.
+
+Estimated (2026-11-22, light use, ~1,500 runs a month): ~$30-60/month today, ~$5-10 with the above.
 
 Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then the server refuses to boot with
 `OPS_MAX_LEVEL > 1`.

@@ -117,6 +117,17 @@ describe("summarizePod", () => {
   it("counts a running pod with all containers ready as healthy", () => {
     expect(summarizePod(healthy, NOW)).toMatchObject({ healthy: true, ready: "1/1", owner: null });
   });
+
+  it("reports a pod being deleted as Terminating, not a healthy running pod", () => {
+    // After a scale-down to 0 the old pod still reports phase Running, ready, until its containers exit.
+    const shuttingDown = { ...healthy, metadata: { ...healthy.metadata, deletionTimestamp: ago(12) } };
+    expect(summarizePod(shuttingDown, NOW)).toMatchObject({
+      phase: "Terminating",
+      healthy: false,
+      deleting_since_s: 12,
+    });
+    expect(summarizePod(healthy, NOW)).not.toHaveProperty("deleting_since_s");
+  });
 });
 
 const harness = useHarness();

@@ -72,6 +72,9 @@ export const volumeFull: Scenario = {
   rootCause:
     "The uploads PersistentVolumeClaim in app is 95% full: uploads-api can no longer write incoming " +
     "files (No space left on device).",
+  symptom: "File uploads to the uploads service have been failing since this morning.",
+  fix: "Expand the uploads volume or clean up old files.",
+  lookAt: "PVC uploads (prom_volume_usage) and the uploads-api logs.",
   secrets: [STORAGE_KEY],
 
   async break(lab) {

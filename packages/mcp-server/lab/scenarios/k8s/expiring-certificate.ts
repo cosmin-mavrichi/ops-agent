@@ -48,7 +48,11 @@ export const expiringCertificate: Scenario = {
   name: "expiring-certificate",
   rootCause:
     "The internal CA's key Secret (ca-key) was deleted, so the internal-ca Issuer is not Ready and cert-manager " +
-    "cannot reissue api-tls, which expires within the hour.",
+    "cannot reissue api-tls, which expires within the hour. (The pending reissue was triggered by a change to " +
+    "api-tls's DNS names; its CertificateRequest is stuck for the same reason.)",
+  symptom: "Monitoring warns that the API's TLS certificate expires within the hour and hasn't been renewed. Why not?",
+  fix: "Restore the CA key Secret (or re-create the CA), then let cert-manager reissue api-tls.",
+  lookAt: "Certificate api-tls and Issuer internal-ca (k8s_certificates).",
   secrets: [ANNOTATION_TOKEN],
 
   async break(lab) {

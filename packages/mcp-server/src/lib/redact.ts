@@ -3,23 +3,38 @@
  * Tools should already avoid returning sensitive fields; this catches what slips through.
  */
 
+/**
+ * A secret we were told about appeared in the output: the system leaked it (e.g. an app logging its own
+ * password), which is worth reporting. Distinct from the pattern marker, so the model can tell the two apart.
+ */
+export const KNOWN_SECRET_MARKER = "[redacted: known secret]";
+/** Something that looks like a secret (patterns deliberately over-match, so this is no proof of a leak). */
+export const REDACTED_MARKER = "[redacted]";
+
+// Patterns run after known secrets are replaced; (?!\[redacted) keeps a marker from being re-redacted, which would
+// turn "password=[redacted: known secret]" back into a plain "[redacted]".
+const NOT_A_MARKER = String.raw`(?!\[redacted)`;
+
 const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   // scheme://user:pass@host  (postgres, redis, amqp, https basic auth…)
-  [/([a-z][a-z0-9+.-]*:\/\/)[^\s:/@]+:[^\s@/]+@/gi, "$1***:***@"],
+  [/([a-z][a-z0-9+.-]*:\/\/)[^\s:/@]+:[^\s@/]+@/gi, `$1${REDACTED_MARKER}@`],
   // Authorization headers / bearer tokens
-  [/\b(bearer|basic)\s+[a-z0-9._~+/=-]{8,}/gi, "$1 ***"],
+  [/\b(bearer|basic)\s+[a-z0-9._~+/=-]{8,}/gi, `$1 ${REDACTED_MARKER}`],
   // JWTs
-  [/\beyJ[a-z0-9_-]{5,}\.[a-z0-9_-]{5,}\.[a-z0-9_-]{5,}/gi, "***jwt***"],
+  [/\beyJ[a-z0-9_-]{5,}\.[a-z0-9_-]{5,}\.[a-z0-9_-]{5,}/gi, REDACTED_MARKER],
   // SQL: PASSWORD 'literal'
-  [/(password\s+)'(?:[^']|'')*'/gi, "$1'***'"],
+  [new RegExp(String.raw`(password\s+)'${NOT_A_MARKER}(?:[^']|'')*'`, "gi"), `$1'${REDACTED_MARKER}'`],
   // key=value / key: value / "key":"value" for secret-ish keys (FOO_PASSWORD, MEILI_MASTER_KEY, api-key…)
   // Errs on the side of over-redacting (e.g. sort_key=…), which is the cheap mistake here.
   [
-    /(["']?\b[a-z0-9_.-]*?(?:password|passwd|pwd|secret|token|credentials?|api[_-]?key|[_-]key)(?![a-z0-9])["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}&]+)/gi,
-    "$1***",
+    new RegExp(
+      String.raw`(["']?\b[a-z0-9_.-]*?(?:password|passwd|pwd|secret|token|credentials?|api[_-]?key|[_-]key)(?![a-z0-9])["']?\s*[:=]\s*)${NOT_A_MARKER}("[^"]*"|'[^']*'|[^\s,;}&]+)`,
+      "gi",
+    ),
+    `$1${REDACTED_MARKER}`,
   ],
   // emails (user data in logs)
-  [/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi, "***@***"],
+  [/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi, REDACTED_MARKER],
 ];
 
 export type Redactor = (text: string) => string;
@@ -38,7 +53,7 @@ export function createRedactor(knownSecrets: string[] = []): Redactor {
 
   return (input: string) => {
     let out = input;
-    for (const secret of exact) out = out.replaceAll(secret, "***");
+    for (const secret of exact) out = out.replaceAll(secret, KNOWN_SECRET_MARKER);
     for (const [pattern, replacement] of PATTERNS) out = out.replace(pattern, replacement);
     return out;
   };

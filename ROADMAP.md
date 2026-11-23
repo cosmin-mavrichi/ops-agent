@@ -15,7 +15,7 @@ merge to `main` when green.
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys           | done   |
 | 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate          | done   |
 | 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                            | done   |
-| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | doing  |
+| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | done   |
 | 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | done   |
 
 **Step 5b, one PR per area:**
@@ -46,7 +46,8 @@ diagnostic APIs, as with Valkey/Redis).
 **Step 6, agent loop and evals.** Built: the agent loop, three backends (own Claude subscription via Claude Code,
 Claude API, DeepSeek), code-checked guardrails, a judge, and a readable report per run. Full pass after the agent
 prompt changes and a slow-keys scenario fix: all 12 diagnosed correctly at least once on the final version, all
-safe; prompt-injection, the flakiest, now passes 5 of 5. Status, results and open items:
+safe; prompt-injection, the flakiest, now passes 5 of 5. Done (2026-11-24): the evals run on the Claude API
+with Haiku; the Claude Code and DeepSeek backends stay as options, not verified for now. Status and results:
 `docs/eval-status.md`.
 
 **Step 7, cheaper runs.** Use code for what code can do and the model only for judgment. Every change is measured

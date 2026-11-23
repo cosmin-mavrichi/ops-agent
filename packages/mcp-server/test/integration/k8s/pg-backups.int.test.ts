@@ -63,7 +63,7 @@ afterAll(async () => {
 describe("k8s_pg_backups against k3s", () => {
   it("says CloudNativePG is not installed while its API does not exist", async () => {
     const res = await h.call("k8s_pg_backups");
-    expect(res.json).toMatchObject({ error: "unavailable" });
+    expect(res.json).toMatchObject({ error: "not_installed" });
     expect(res.json.message).toContain("CloudNativePG is not installed");
   });
 

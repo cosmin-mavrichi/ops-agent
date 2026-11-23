@@ -1,0 +1,30 @@
+{
+  "name": "@ops-agent/watcher",
+  "version": "1.0.0",
+  "description": "Runs ops_triage on a schedule and starts an agent investigation only for new problems.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./agent": "./src/agent.ts",
+    "./pricing": "./src/pricing.ts",
+    "./mcp": "./src/mcp.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p . --noEmit",
+    "start": "node dist/src/index.js",
+    "test": "vitest run test/unit",
+    "test:int": "vitest run test/integration"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}

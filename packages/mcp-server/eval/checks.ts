@@ -1,4 +1,4 @@
-import type { AgentRun } from "./agent.js";
+import type { AgentRun } from "@ops-agent/watcher/agent";
 
 /** The guardrails every run must keep, whatever its diagnosis. Checked in code, not by the judge. */
 export interface Checks {

@@ -70,11 +70,16 @@ describe("ops_triage against real Postgres and Valkey", () => {
     expect(res.json.problems.redis_slowlog[0]).toContain("KEYS from reports");
   });
 
-  it("checks only the configured services and says why pg_job_queues could not run", async () => {
+  it("checks only the configured services and says pg-boss is not installed", async () => {
     const res = await h.call("ops_triage");
-    const checked = [...Object.keys(res.json.problems), ...res.json.clean, ...Object.keys(res.json.unavailable)];
+    const checked = [
+      ...Object.keys(res.json.problems),
+      ...res.json.clean,
+      ...Object.keys(res.json.unavailable),
+      ...Object.keys(res.json.not_installed),
+    ];
     expect(checked.toSorted()).toEqual(["pg_blocking", "pg_job_queues", "redis_health", "redis_slowlog"]);
-    expect(res.json.unavailable.pg_job_queues).toMatch(/pg-boss/);
+    expect(res.json.not_installed.pg_job_queues).toMatch(/pg-boss/);
   });
 
   it("never shows the locked row's data or the agent's own passwords", async () => {

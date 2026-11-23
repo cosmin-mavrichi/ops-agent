@@ -27,7 +27,7 @@ const PER_TOKEN = 1 / 1_000_000;
 /** The cost of one response, from the model asked for and the usage it reports. */
 export function costOf(model: string, usage: Anthropic.Usage): number {
   const price = PRICES[model];
-  if (price === undefined) throw new Error(`no price for model ${model}; add it to eval/pricing.ts`);
+  if (price === undefined) throw new Error(`no price for model ${model}; add it to packages/watcher/src/pricing.ts`);
 
   const cacheRead = usage.cache_read_input_tokens ?? 0;
   const cacheWrite = usage.cache_creation_input_tokens ?? 0;

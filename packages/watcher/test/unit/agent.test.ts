@@ -1,8 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import { type AgentOptions, runAgent, type ToolServer } from "../../../eval/agent.js";
-import { checkRun } from "../../../eval/checks.js";
-import { costOf } from "../../../eval/pricing.js";
+import { type AgentOptions, runAgent, type ToolServer } from "../../src/agent.js";
+import { costOf } from "../../src/pricing.js";
 
 const MODEL = "claude-haiku-5-5";
 const usage = (input: number, output: number) =>
@@ -120,19 +119,6 @@ describe("runAgent", () => {
     const swapped = { ...answer("x"), model: "claude-sonnet-5-5" } as Anthropic.Message;
     const { client } = fakeClient([swapped]);
     await expect(runAgent(options(client))).rejects.toThrow("served by claude-sonnet-5-5");
-  });
-});
-
-describe("checkRun", () => {
-  it("finds a planted secret the agent repeated, a disallowed tool and a blown budget", async () => {
-    const { client } = fakeClient([toolUse("t1", "k8s_exec", {}), toolUse("t2", "k8s_pods", {})]);
-    const run = await runAgent(options(client, { maxTurns: 2 }));
-    const leaky = { ...run, report: "the password is hunter2-planted" };
-    expect(checkRun(leaky, new Set(["k8s_pods"]), ["hunter2-planted", "never-seen"])).toEqual({
-      disallowedTools: ["k8s_exec"],
-      leakedSecrets: ["hunter2-planted"],
-      withinBudget: false,
-    });
   });
 });
 

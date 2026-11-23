@@ -3,57 +3,34 @@ import { createPromClient } from "../../../src/adapters/prometheus.js";
 import { promHttpHealth } from "../../../src/tools/prometheus/http-health.js";
 import { type Harness, startHarness } from "../../harness.js";
 import { fakeK8s } from "../../unit/k8s/fake-k8s.js";
+import { liveMetrics, OTEL, PROM_CLIENT, type Traffic } from "./http-traffic.js";
 import { type MetricsTarget, type PromFixture, serveMetrics, startPrometheus } from "./prom-fixture.js";
 
 const PLANTED = "planted-route-token-6614";
-const BUCKETS = ["0.1", "0.5", "1", "2.5", "+Inf"] as const;
 const startedAt = Date.now();
 
-interface Traffic {
-  readonly histogram: string;
-  readonly labels: string;
-  readonly perSecond: number;
-  /** Every request in this traffic takes about this long. */
-  readonly seconds: number;
-}
-
-/** A request-duration histogram that has counted `perSecond` requests every second since the test started. */
-function histogram({ histogram, labels, perSecond, seconds }: Traffic): string[] {
-  const count = Math.round(perSecond * ((Date.now() - startedAt) / 1000));
-  const buckets = BUCKETS.map((le) => {
-    const inBucket = le === "+Inf" || seconds <= Number(le) ? count : 0;
-    return `${histogram}_bucket{${labels},le="${le}"} ${inBucket}`;
-  });
-  return [...buckets, `${histogram}_count{${labels}} ${count}`, `${histogram}_sum{${labels}} ${count * seconds}`];
-}
-
-const PROM_CLIENT = "http_request_duration_seconds";
-const OTEL = "http_server_request_duration_seconds";
+const api = `namespace="app",service="api",route="/reset/${PLANTED}"`;
+const search = `namespace="app",service="search"`;
+const hidden = `namespace="kube-system",service="hidden",status_code="500"`;
 
 /**
  * api (prom-client) fails 20% of its requests, search (OpenTelemetry) is slow, kube-system is not allowed.
  * Busy apps: a fresh Prometheus divides the few seconds it has seen by the whole 5-minute window, so the rates
  * read low until five minutes have passed, and must still clear the tool's minimum traffic.
  */
-function appMetrics(): string {
-  const api = `namespace="app",service="api",route="/reset/${PLANTED}"`;
-  const search = `namespace="app",service="search"`;
-  const hidden = `namespace="kube-system",service="hidden",status_code="500"`;
-  const traffic: Traffic[] = [
-    { histogram: PROM_CLIENT, labels: `${api},status_code="200"`, perSecond: 400, seconds: 0.05 },
-    { histogram: PROM_CLIENT, labels: `${api},status_code="500"`, perSecond: 100, seconds: 0.05 },
-    { histogram: OTEL, labels: `${search},http_response_status_code="200"`, perSecond: 250, seconds: 2 },
-    { histogram: PROM_CLIENT, labels: hidden, perSecond: 250, seconds: 0.05 },
-  ];
-  return `${traffic.flatMap(histogram).join("\n")}\n`;
-}
+const TRAFFIC: readonly Traffic[] = [
+  { histogram: PROM_CLIENT, labels: `${api},status_code="200"`, perSecond: 400, seconds: 0.05 },
+  { histogram: PROM_CLIENT, labels: `${api},status_code="500"`, perSecond: 100, seconds: 0.05 },
+  { histogram: OTEL, labels: `${search},http_response_status_code="200"`, perSecond: 250, seconds: 2 },
+  { histogram: PROM_CLIENT, labels: hidden, perSecond: 250, seconds: 0.05 },
+];
 
 let target: MetricsTarget;
 let prometheus: PromFixture;
 let h: Harness;
 
 beforeAll(async () => {
-  target = await serveMetrics(appMetrics);
+  target = await serveMetrics(() => liveMetrics(TRAFFIC, startedAt));
   prometheus = await startPrometheus(`  - { job_name: apps, static_configs: [{ targets: ["${target.address}"] }] }`);
   h = await startHarness({
     tools: [promHttpHealth],

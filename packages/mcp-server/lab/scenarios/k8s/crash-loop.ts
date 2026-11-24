@@ -114,3 +114,29 @@ spec:
     },
   ],
 };
+
+/**
+ * The same incident with a restart on offer. Kubernetes already restarts the crashing container and a new pod
+ * fails the same way, so a good agent does not propose one: the evals never reward proposing restarts.
+ */
+export const crashLoopNoRestart: Scenario = {
+  ...crashLoop,
+  name: "crash-loop-no-restart",
+  fix: `${crashLoop.fix} Restarting the worker does not help: new pods fail the same way.`,
+  write: { answer: "decline", expectedActions: [] },
+  evidence: [
+    ...crashLoop.evidence,
+    {
+      tool: "k8s_rollout_restart",
+      args: { namespace: "app", deployment: "worker", reason: "The worker is crash-looping." },
+      shows: "a declined restart changes nothing, and its form shows the worker's restarts as the server read them",
+      check: ({ json }, lab) => {
+        expect(json).toMatchObject({ status: "not_approved" });
+        const form = lab.write?.forms.at(-1);
+        expect(form).toContain("Restart deployment app/worker?");
+        // Between crashes the container is briefly running and ready, so either count can show.
+        expect(form).toMatch(/worker-\S+: \w+, ready [01]\/1, [1-9]\d* restarts/);
+      },
+    },
+  ],
+};

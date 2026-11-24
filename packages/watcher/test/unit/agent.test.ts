@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import { type AgentOptions, runAgent, type ToolServer } from "../../src/agent.js";
+import { type AgentOptions, runAgent, SYSTEM_PROMPT, systemPrompt, type ToolServer } from "../../src/agent.js";
 import { costOf } from "../../src/pricing.js";
 
 const MODEL = "claude-haiku-5-5";
@@ -84,6 +84,19 @@ describe("runAgent", () => {
       },
     ]);
     expect(requests[0]?.cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  it("tells the model it only reads, unless actions with approval are offered", async () => {
+    const readOnly = fakeClient([answer("Root cause: x")]);
+    await runAgent(options(readOnly.client));
+    expect(readOnly.requests[0]?.system).toBe(SYSTEM_PROMPT);
+    expect(SYSTEM_PROMPT).toContain("cannot change anything");
+
+    const withActions = fakeClient([answer("Root cause: x")]);
+    await runAgent(options(withActions.client, { actions: "with_approval" }));
+    expect(withActions.requests[0]?.system).toBe(systemPrompt("with_approval"));
+    expect(withActions.requests[0]?.system).toContain("only after a human approves");
+    expect(withActions.requests[0]?.system).not.toContain("cannot change anything");
   });
 
   it("stops at the turn limit", async () => {

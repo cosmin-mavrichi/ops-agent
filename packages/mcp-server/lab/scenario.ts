@@ -21,6 +21,7 @@ import {
   startSearch,
 } from "../test/integration/search/search-fixture.js";
 import { startMonitoring } from "./monitoring.js";
+import { type FormAnswer, startWriteServer, type WriteServer } from "./write-server.js";
 
 export type ToolResult = Awaited<ReturnType<Awaited<ReturnType<typeof startHarness>>["call"]>>;
 
@@ -31,8 +32,20 @@ export interface Evidence {
   readonly args?: Readonly<Record<string, unknown>> | ((lab: Lab) => Promise<Record<string, unknown>>);
   /** What this proves, e.g. "the worker is crash-looping". */
   readonly shows: string;
+  /** How long to keep retrying (or, run once, to wait), 60s by default; a rollout needs longer. */
+  readonly timeoutMs?: number;
+  /** "retry" (the default) until the check passes; "once" for an action, which must not be repeated. */
+  readonly attempts?: "retry" | "once";
   /** Throws when the evidence is missing. Retried, because live state flips (e.g. crash loops). */
-  check(result: ToolResult): void;
+  check(result: ToolResult, lab: Lab): void;
+}
+
+/** The write server's tools, offered next to the read tools (docs/v2-design.md). */
+export interface WriteOffer {
+  /** How the client answers every approval form. */
+  readonly answer: FormAnswer;
+  /** The write tools a correct agent calls; calling any other fails the eval's guardrails. */
+  readonly expectedActions: readonly string[];
 }
 
 export interface Scenario {
@@ -54,6 +67,8 @@ export interface Scenario {
   readonly mountedSecrets?: Readonly<Record<string, string>>;
   /** A search engine, started only for the scenarios that need one (it takes a GiB of memory). */
   readonly search?: { readonly engine: Engine } & SearchOptions;
+  /** Only the scenarios for write tools start the write server. */
+  readonly write?: WriteOffer;
   /** Breaks one thing and waits until the failure is observable. */
   break(lab: Lab): Promise<void>;
   readonly evidence: readonly Evidence[];
@@ -67,6 +82,8 @@ export interface Lab {
   readonly cache: RedisFixture;
   /** Only when the scenario asked for one. */
   readonly search: SearchFixture | undefined;
+  /** Only when the scenario offers write tools; `call` and `listTools` include its tools. */
+  readonly write: WriteServer | undefined;
   call(tool: string, args?: Record<string, unknown>): Promise<ToolResult>;
   /** The tools the server exposes, as the MCP client lists them (name, description, input schema). */
   listTools(): Promise<Tool[]>;
@@ -77,7 +94,7 @@ export interface Lab {
   stop(): Promise<void>;
 }
 
-type LabNeeds = Pick<Scenario, "mountedSecrets" | "search">;
+type LabNeeds = Pick<Scenario, "mountedSecrets" | "search" | "write">;
 
 export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
   const searchStarting = needs.search ? startSearch(needs.search.engine, needs.search) : undefined;
@@ -108,18 +125,40 @@ export async function startLab(needs: LabNeeds = {}): Promise<Lab> {
   const cleanups: Array<() => Promise<unknown>> = [];
   const serverConfig = writeServerConfig({ k3s, db, cache, search, promUrl: monitoring.prometheus.url });
   const knownSecrets = [k3s.token, monitoring.token, ...appSecrets];
+  // Started last; if it fails, what is already up is closed here, since stop() is never reached.
+  const startWrite = async (offer: WriteOffer) => {
+    try {
+      return await startWriteServer(k3s, { ...serverConfig.files, answer: offer.answer, knownSecrets });
+    } catch (err) {
+      await harness.close();
+      await pg.end();
+      rmSync(serverConfig.dir, { recursive: true, force: true });
+      throw err;
+    }
+  };
+  const write = needs.write ? await startWrite(needs.write) : undefined;
+  const writeToolNames = new Set(write?.tools.map((tool) => tool.name));
+  const callTool = (tool: string, args: Record<string, unknown>) => {
+    if (write && writeToolNames.has(tool)) return write.call(tool, args);
+    return harness.call(tool, args);
+  };
 
   return {
     k3s,
     db,
     cache,
     search,
-    call: (tool, args = {}) => harness.call(tool, args),
-    listTools: async () => (await harness.client.listTools()).tools,
+    write,
+    call: (tool, args = {}) => callTool(tool, args),
+    listTools: async () => {
+      const { tools } = await harness.client.listTools();
+      return [...tools, ...(write?.tools ?? [])];
+    },
     serverEnv: { ...serverConfig.env, OPS_KNOWN_SECRETS: knownSecrets.join(",") },
     onStop: (cleanup) => cleanups.push(cleanup),
     async stop() {
       for (const cleanup of cleanups.toReversed()) await cleanup().catch(() => undefined);
+      await write?.close();
       await harness.close();
       await pg.end();
       rmSync(serverConfig.dir, { recursive: true, force: true });
@@ -137,7 +176,15 @@ interface ServerTargets {
 }
 
 /** The server reads the Kubernetes token and CA from files, as in a pod; they go to a temp dir. */
-function writeServerConfig(targets: ServerTargets): { dir: string; env: Record<string, string> } {
+interface ServerConfig {
+  /** The temp dir holding the files; removed when the lab stops. */
+  readonly dir: string;
+  readonly env: Record<string, string>;
+  /** What the write server reuses: the dir for its own token file, and the cluster's CA. */
+  readonly files: { readonly dir: string; readonly caFile: string };
+}
+
+function writeServerConfig(targets: ServerTargets): ServerConfig {
   const dir = mkdtempSync(join(tmpdir(), "ops-lab-server-"));
   const tokenFile = join(dir, "token");
   const caFile = join(dir, "ca.crt");
@@ -153,7 +200,7 @@ function writeServerConfig(targets: ServerTargets): { dir: string; env: Record<s
     OPS_PROM_URL: targets.promUrl,
   };
   if (targets.search) env.OPS_SEARCH_URL = targets.search.opsUrl;
-  return { dir, env };
+  return { dir, env, files: { dir, caFile } };
 }
 
 // Each name appears in several manifest fields that must agree; a mismatch only shows as a 150s wait timeout.

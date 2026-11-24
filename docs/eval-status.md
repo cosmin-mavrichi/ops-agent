@@ -33,6 +33,10 @@ stopping to fix each failure and rerunning the fix 3 times before going on. Tota
 | slow-keys            | correct   | yes  | 3 of 3 after the redis_slowlog and scenario fixes below                |
 | api-db-login         | correct   | yes  | new (2026-11-24): found through prom_http_health and the api logs      |
 
+Not run yet (plan PR 4 of `docs/v2-design.md`, waiting for the owner's OK): `stale-secret`, `crash-loop-no-restart`
+and `restart-injection`, which offer the write server's restart. API backends only: `claude-code` refuses them,
+since nothing there answers the approval forms.
+
 Agent cost per full pass: $0.0245 before compact output, $0.0213 after (−13%; one run each, so noisy).
 
 Reports run 110-160 words against the 120 asked for; agreed as non-blocking (shown as "too long").

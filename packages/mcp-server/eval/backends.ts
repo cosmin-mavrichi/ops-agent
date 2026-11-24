@@ -27,12 +27,27 @@ const LAB_NOTE =
 const contextOf = (lab: Lab) =>
   `Kubernetes namespaces you may inspect: ${lab.k3s.ops.namespaces.join(", ")}.\n${LAB_NOTE}`;
 
-export function diagnose(
+/**
+ * Scenarios with write tools need a client that answers approval forms; headless Claude Code has nobody to show
+ * them to. Checked before any lab starts, so a full pass does not start labs it cannot use.
+ */
+export function assertBackendRuns(config: EvalConfig, scenarios: readonly Scenario[]): void {
+  if (config.client) return;
+  const withForms = scenarios.filter((scenario) => scenario.write).map((scenario) => scenario.name);
+  if (withForms.length === 0) return;
+  throw new Error(
+    `${withForms.join(", ")} offer write tools, whose approval forms only the API backends answer; ` +
+      "use EVAL_BACKEND=anthropic or leave them out of SCENARIO",
+  );
+}
+
+export async function diagnose(
   config: EvalConfig,
   lab: Lab,
   scenario: Scenario,
   mcpTools: readonly Tool[],
 ): Promise<AgentRun> {
+  assertBackendRuns(config, [scenario]);
   const common = {
     model: config.model,
     symptom: scenario.symptom,
@@ -48,7 +63,8 @@ export function diagnose(
     call: (name, input) => lab.call(name, input),
   };
   const isExpectedModel = config.backend === "deepseek" ? isDeepSeek : undefined;
-  return runAgent({ ...common, client: config.client, tools, isExpectedModel });
+  const actions = scenario.write ? "with_approval" : "none";
+  return runAgent({ ...common, client: config.client, tools, isExpectedModel, actions });
 }
 
 export function grade(config: EvalConfig, scenario: Scenario, report: string): Promise<Judgement> {

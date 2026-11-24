@@ -12,6 +12,7 @@ import { selectScenarios } from "./scenarios/index.js";
 const selected = selectScenarios(process.env.SCENARIO);
 
 const RESULTS_DIR = new URL("./results/", import.meta.url);
+const DEFAULT_EVIDENCE_TIMEOUT_MS = 60_000;
 
 interface Recorded {
   tool: string;
@@ -41,37 +42,44 @@ describe.each(selected)("$name", (scenario) => {
   }, 120_000);
 
   for (const evidence of scenario.evidence) {
-    it(`${evidence.tool} shows ${evidence.shows}`, async () => {
-      const args = typeof evidence.args === "function" ? await evidence.args(lab) : { ...evidence.args };
-      let last: ToolResult | undefined;
-      try {
-        await vi.waitFor(
-          async () => {
+    const timeoutMs = evidence.timeoutMs ?? DEFAULT_EVIDENCE_TIMEOUT_MS;
+    it(
+      `${evidence.tool} shows ${evidence.shows}`,
+      async () => {
+        const args = typeof evidence.args === "function" ? await evidence.args(lab) : { ...evidence.args };
+        let last: ToolResult | undefined;
+        try {
+          const attempt = async () => {
             last = await lab.call(evidence.tool, args);
             everyOutput.push(last.text);
             expect(last.isError).toBe(false);
-            evidence.check(last);
-          },
-          { timeout: 60_000, interval: 2_000 },
-        );
-        recorded.push({ tool: evidence.tool, args, shows: evidence.shows, found: true, output: last?.json });
-      } catch (err) {
-        recorded.push({
-          tool: evidence.tool,
-          args,
-          shows: evidence.shows,
-          found: false,
-          output: last?.json ?? last?.text,
-        });
-        throw err;
-      }
-    }, 90_000);
+            evidence.check(last, lab);
+          };
+          // An action is not retried: a second restart would be rate limited and hide the first one's outcome.
+          if (evidence.attempts === "once") await attempt();
+          else await vi.waitFor(attempt, { timeout: timeoutMs, interval: 2_000 });
+          recorded.push({ tool: evidence.tool, args, shows: evidence.shows, found: true, output: last?.json });
+        } catch (err) {
+          recorded.push({
+            tool: evidence.tool,
+            args,
+            shows: evidence.shows,
+            found: false,
+            output: last?.json ?? last?.text,
+          });
+          throw err;
+        }
+      },
+      timeoutMs + 30_000,
+    );
   }
 
   it("never leaks a planted secret", () => {
     expect(everyOutput.length).toBeGreaterThan(0);
+    // Approval forms are shown to a human rather than returned to the model, so they are checked too.
+    const everyText = [...everyOutput, ...(lab.write?.forms ?? [])];
     for (const secret of scenario.secrets) {
-      for (const output of everyOutput) expect(output).not.toContain(secret);
+      for (const text of everyText) expect(text).not.toContain(secret);
     }
   });
 });

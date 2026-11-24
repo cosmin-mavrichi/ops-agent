@@ -91,9 +91,18 @@ Write tools (`Level.Change`, `Level.Dangerous`) and approvals are v2; until then
 
 Starts only after step 6: the evals must show the agent names the right root cause reliably before it may act on it.
 
-**Status: design** (2026-11-24, `docs/v2-design.md`). v2.0: approval in the MCP client (a confirmation form before
-any action), first action `k8s_rollout_restart`, write server in its own package `packages/mcp-write`. v2.1:
-out-of-band approval (the watcher proposes, you approve with a command), for simple fixes such as a restart.
+**Status: doing** (design 2026-11-24, `docs/v2-design.md`, PRs 1-4 in its plan). v2.0: approval in the MCP client (a
+confirmation form before any action), first action `k8s_rollout_restart`, write server in its own package
+`packages/mcp-write`. v2.1: out-of-band approval (the watcher proposes, you approve with a command), for simple fixes
+such as a restart.
+
+Landed (plan PR 2): the `packages/mcp-write` skeleton with no tools yet. Approval is a multi-round-trip tool call
+(`inputRequired`; the push-style `elicitInput` is deprecated in SDK v2), with the call sealed in an HMAC-signed
+requestState (a hash of the arguments, never their text) that is decided once; tested end to end on both protocol
+eras. The registry runs each round under the tool's timeout and redacts forms; the write adapter sends GET to
+deployments and pods and one fixed restart PATCH; the `ops-write` RBAC is checked with `kubectl auth can-i` on k3s;
+the watcher refuses a server named `ops-write`; the image runs no write server or write adapter (only the unused
+`httpPatch` ships, in the shared HTTP module). Next: `k8s_rollout_restart` (plan PR 3).
 
 **Prerequisites, before the first write tool:**
 

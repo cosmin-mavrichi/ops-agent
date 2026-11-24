@@ -8,8 +8,10 @@ COPY packages/mcp-server/package.json packages/mcp-server/
 COPY packages/watcher/package.json packages/watcher/
 RUN npm i -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")" \
  && pnpm install --frozen-lockfile
-COPY packages packages
-RUN pnpm build \
+# Only the two packages the image ships: the write server (packages/mcp-write) never runs in the cluster.
+COPY packages/mcp-server packages/mcp-server
+COPY packages/watcher packages/watcher
+RUN pnpm --filter @ops-agent/mcp-server --filter @ops-agent/watcher build \
  && pnpm --filter @ops-agent/mcp-server deploy --prod /out/mcp-server \
  && pnpm --filter @ops-agent/watcher deploy --prod /out/watcher
 

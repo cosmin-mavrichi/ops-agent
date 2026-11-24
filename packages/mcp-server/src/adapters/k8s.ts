@@ -46,7 +46,7 @@ export function createK8sClient(cfg: K8sConfig): K8sClient {
   };
 }
 
-function buildUrl(server: string, path: string, query: QueryParams): URL {
+export function buildUrl(server: string, path: string, query: QueryParams): URL {
   const url = new URL(path, server);
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined) url.searchParams.set(key, String(value));
@@ -63,7 +63,8 @@ export function statusError(status: number, path: string, body: string): Error {
   return new Error(`kubernetes API returned ${status} for ${path}: ${message ?? "no message"}`);
 }
 
-function apiMessage(body: string): string | undefined {
+/** The API server's own error message, if the body carries one. */
+export function apiMessage(body: string): string | undefined {
   try {
     const parsed = JSON.parse(body) as { message?: unknown };
     return typeof parsed.message === "string" ? parsed.message : undefined;

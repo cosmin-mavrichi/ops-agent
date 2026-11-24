@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/config.js";
-import { serverEnv } from "../../src/mcp.js";
+import { assertNotWriteServer, serverEnv, WRITE_SERVER_NAME } from "../../src/mcp.js";
 import { createReporter } from "../../src/report.js";
 
 const DEFAULTS = { server: "/app/mcp-server/dist/src/index.js" };
@@ -77,5 +77,16 @@ describe("createReporter", () => {
     const lines = (await readFile(file, "utf8")).trimEnd().split("\n");
     expect(lines).toEqual(logged);
     expect(lines.map((line) => JSON.parse(line).event)).toEqual(["check_failed", "incident_resolved"]);
+  });
+});
+
+describe("assertNotWriteServer", () => {
+  it("refuses the write server, which trusts its client to put each approval in front of a human", () => {
+    expect(() => assertNotWriteServer({ name: WRITE_SERVER_NAME, version: "0.1.0" })).toThrow(/write server/);
+  });
+
+  it("accepts the read server, and a server that does not name itself", () => {
+    expect(() => assertNotWriteServer({ name: "ops", version: "0.1.0" })).not.toThrow();
+    expect(() => assertNotWriteServer(undefined)).not.toThrow();
   });
 });

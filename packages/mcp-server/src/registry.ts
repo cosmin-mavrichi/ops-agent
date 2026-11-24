@@ -1,8 +1,15 @@
-import type { CallToolResult, McpServer, ServerContext } from "@modelcontextprotocol/server";
+import {
+  type CallToolResult,
+  type InputRequiredResult,
+  inputRequired,
+  isInputRequiredResult,
+  type McpServer,
+  type ServerContext,
+} from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { CancelledError, TimeoutError, truncate, withTimeout } from "./lib/limits.js";
 import type { Redactor } from "./lib/redact.js";
-import { Level, type ToolContext, type ToolDef, ToolError } from "./types.js";
+import { Level, type Round, type ToolContext, type ToolDef, ToolError } from "./types.js";
 
 export interface AuditEntry {
   tool: string;
@@ -11,14 +18,21 @@ export interface AuditEntry {
   ok: boolean;
   durationMs: number;
   error?: string;
+  /** The tool returned a request for input (a confirmation form) instead of output. */
+  awaitingInput?: true;
 }
 
-export interface RegistryOptions {
+type AuditOutcome = Pick<AuditEntry, "error" | "awaitingInput">;
+
+/** Tools of any input and output shape, for one context: what a server registers. */
+export type ToolList<C = ToolContext> = ReadonlyArray<ToolDef<any, any, C>>;
+
+export interface RegistryOptions<C = ToolContext> {
   /** Highest level this build exposes. v1 = Level.Read. Tools above it are never registered. */
   maxLevel: Level;
   redact: Redactor;
-  /** Builds the per-call context (fresh AbortSignal each call). */
-  context: (signal: AbortSignal) => ToolContext;
+  /** Builds the per-call context (fresh AbortSignal each call, and what the client sent back for this round). */
+  context: (signal: AbortSignal, round: Round) => C;
   audit?: (entry: AuditEntry) => void;
   defaultTimeoutMs?: number;
   defaultMaxOutputChars?: number;
@@ -27,9 +41,11 @@ export interface RegistryOptions {
 /**
  * Registers tools on the MCP server. Every call goes through the same pipeline:
  * validate → run with timeout → serialize → redact → truncate → audit.
+ * A tool may instead return a request for input (inputRequired): it passes through with its text redacted, and
+ * the client calls again with the answers. The timeout covers each round, never the wait between them.
  * Returns the names actually registered, so tests can assert the exposed surface.
  */
-export function registerTools(server: McpServer, defs: ToolDef<any>[], opts: RegistryOptions): string[] {
+export function registerTools<C>(server: McpServer, defs: ToolList<C>, opts: RegistryOptions<C>): string[] {
   assertUniqueNames(defs);
   // Tools above maxLevel are not exposed at all, rather than listed and then denied.
   const exposed = defs.filter((def) => def.level <= opts.maxLevel);
@@ -37,7 +53,7 @@ export function registerTools(server: McpServer, defs: ToolDef<any>[], opts: Reg
   return exposed.map((def) => def.name);
 }
 
-function assertUniqueNames(defs: readonly ToolDef<any>[]): void {
+function assertUniqueNames(defs: readonly ToolDef<any, any, unknown>[]): void {
   const seen = new Set<string>();
   for (const { name } of defs) {
     if (seen.has(name)) throw new Error(`duplicate tool name: ${name}`);
@@ -45,7 +61,7 @@ function assertUniqueNames(defs: readonly ToolDef<any>[]): void {
   }
 }
 
-function registerTool(server: McpServer, def: ToolDef<any>, opts: RegistryOptions): void {
+function registerTool<C>(server: McpServer, def: ToolDef<any, any, C>, opts: RegistryOptions<C>): void {
   // Strict: unknown keys are rejected, not silently stripped.
   const schema = z.object(def.input).strict();
   const config = {
@@ -61,41 +77,65 @@ function registerTool(server: McpServer, def: ToolDef<any>, opts: RegistryOption
   server.registerTool(def.name, config, createHandler(def, schema, opts) as any);
 }
 
-function createHandler(def: ToolDef<any>, schema: z.ZodObject<z.core.$ZodShape>, opts: RegistryOptions) {
+function createHandler<C>(def: ToolDef<any, any, C>, schema: z.ZodObject<z.core.$ZodShape>, opts: RegistryOptions<C>) {
   const timeoutMs = def.timeoutMs ?? opts.defaultTimeoutMs ?? 10_000;
   const maxChars = def.maxOutputChars ?? opts.defaultMaxOutputChars ?? 12_000;
 
-  return async (rawArgs: unknown, ctx?: ServerContext): Promise<CallToolResult> => {
+  return async (rawArgs: unknown, ctx?: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
     const started = Date.now();
-    const audit = (args: unknown, error?: string) =>
+    // Arguments are redacted too: a write tool's reason is model text and can repeat a secret it read.
+    const audit = (args: unknown, outcome: AuditOutcome = {}) =>
       opts.audit?.({
         tool: def.name,
         level: def.level,
-        args,
-        ok: error === undefined,
+        args: redactValue(args ?? {}, opts.redact),
+        ok: outcome.error === undefined,
         durationMs: Date.now() - started,
-        error,
+        ...outcome,
       });
 
     // Re-validated here so the pipeline stays safe even if the SDK's own validation changes.
     const parsed = schema.safeParse(rawArgs ?? {});
     if (!parsed.success) {
-      audit(rawArgs, "invalid_input");
+      audit(rawArgs, { error: "invalid_input" });
       return errorResult("invalid_input", describeIssues(parsed.error));
     }
 
     try {
-      const run = (signal: AbortSignal) => def.run(parsed.data, opts.context(signal));
+      const round = roundOf(ctx);
+      const run = (signal: AbortSignal) => def.run(parsed.data, opts.context(signal, round));
       const data = await withTimeout(timeoutMs, run, ctx?.mcpReq.signal);
+      if (isInputRequiredResult(data)) {
+        audit(parsed.data, { awaitingInput: true });
+        return redactInputRequests(data, opts.redact);
+      }
       const text = truncate(serializeRedacted(data, opts.redact), maxChars);
       audit(parsed.data);
       return { content: [{ type: "text", text }] };
     } catch (err) {
       const failure = describeFailure(err, def.name, timeoutMs, opts.redact);
-      audit(parsed.data, failure.auditCode);
+      audit(parsed.data, { error: failure.auditCode });
       return errorResult(failure.code, failure.message);
     }
   };
+}
+
+function roundOf(ctx: ServerContext | undefined): Round {
+  return { inputResponses: ctx?.mcpReq.inputResponses, requestState: ctx?.mcpReq.requestState() };
+}
+
+/**
+ * The form is shown to a human, not returned as output, but it carries text the model wrote and the server read,
+ * so it is redacted like output. requestState is left alone: it is the server's own sealed value, not text.
+ */
+function redactInputRequests(result: InputRequiredResult, redact: Redactor): InputRequiredResult {
+  // Rebuilt from the two known fields, so nothing else a tool puts next to them skips redaction.
+  const inputRequests = result.inputRequests && redactValue(result.inputRequests, redact);
+  return inputRequired({ inputRequests, requestState: result.requestState });
+}
+
+function redactValue<T>(value: T, redact: Redactor): T {
+  return JSON.parse(serializeRedacted(value, redact));
 }
 
 function describeIssues(error: z.ZodError): string {

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "noEmit": true,
+    // Typecheck and tests read @ops-agent/mcp-server/shared from source, so CI needs no build first.
+    "customConditions": ["@ops-agent/source"]
+  },
+  "include": ["src", "test"]
+}

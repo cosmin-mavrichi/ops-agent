@@ -102,7 +102,20 @@ requestState (a hash of the arguments, never their text) that is decided once; t
 eras. The registry runs each round under the tool's timeout and redacts forms; the write adapter sends GET to
 deployments and pods and one fixed restart PATCH; the `ops-write` RBAC is checked with `kubectl auth can-i` on k3s;
 the watcher refuses a server named `ops-write`; the image runs no write server or write adapter (only the unused
-`httpPatch` ships, in the shared HTTP module). Next: `k8s_rollout_restart` (plan PR 3).
+`httpPatch` ships, in the shared HTTP module).
+
+Landed (plan PR 3): `k8s_rollout_restart`. Round 1 refuses a namespace outside the list and the rate limits (10
+minutes per deployment; at most 5 deployments restarted in the last hour across the namespaces; both read from the
+`restartedAt` annotation, so restarts by hand count), reads the deployment and its pods through types that leave out
+the pod template's containers and `summarizePod`, dry-runs the patch, and asks. Round 2 checks the rate limits again
+and patches as one step, so forms approved side by side cannot add up past them, and patches with the resourceVersion
+the human saw (a change meanwhile is a 409: propose again) and reports `healthy`, `rolled_out_unhealthy`,
+`not_rolled_out`, or `unknown` if the cluster cannot be read after the patch (a call cancelled during the check is
+still audited as a restart). Tested on both protocol eras with a fake cluster that plants a secret in every `env` and
+an injection line in a container message, and on k3s as the real `ops-write` ServiceAccount (dry run changes nothing,
+a stale resourceVersion is a conflict, the restart rolls out healthy and a second one is rate limited). Still open:
+whether Claude Code waits up to 4 minutes for round 2 (see the design doc's "To verify"); the audit lines have no
+client name yet. Next: the lab scenarios and evals (plan PR 4).
 
 **Prerequisites, before the first write tool:**
 

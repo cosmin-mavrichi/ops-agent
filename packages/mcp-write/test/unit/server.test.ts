@@ -1,14 +1,12 @@
-import { Client, type ClientOptions, isInputRequiredResult, withInputRequired } from "@modelcontextprotocol/client";
-import { createRequestStateCodec, type ElicitResult, InMemoryTransport } from "@modelcontextprotocol/server";
-import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { createRedactor, defineTool, Level } from "@ops-agent/mcp-server/shared";
+import { isInputRequiredResult, withInputRequired } from "@modelcontextprotocol/client";
+import { defineTool, Level } from "@ops-agent/mcp-server/shared";
 import { WRITE_SERVER_NAME } from "@ops-agent/watcher/mcp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { K8sWriteClient } from "../../src/adapters/k8s-write.js";
-import { createApprovals } from "../../src/approval.js";
 import { createWriteServer, SERVER_NAME } from "../../src/server.js";
+import { writeTools } from "../../src/tools/index.js";
 import type { WriteContext } from "../../src/types.js";
+import { approve, decline, type Era, type HarnessOptions, useHarness } from "../harness.js";
 
 const SECRET = "hunter2-db-password";
 const Facts = z.object({ version: z.string() });
@@ -34,83 +32,37 @@ function probe(actions: string[]) {
   });
 }
 
-type Era = "legacy" | "modern";
-const NEGOTIATION: Record<Era, ClientOptions["versionNegotiation"]> = {
-  legacy: { mode: "legacy" },
-  modern: { mode: { pin: "2026-07-28" } },
+const harness = useHarness();
+
+const unreachableContext = (): WriteContext => {
+  throw new Error("no tool runs in this test");
 };
 
-const unusedK8s: K8sWriteClient = {
-  namespaces: [],
-  getJson: async () => {
-    throw new Error("no kubernetes in this test");
-  },
-  restartDeployment: async () => {
-    throw new Error("no kubernetes in this test");
-  },
-};
-
-let closeAll: (() => Promise<void>) | undefined;
-afterEach(async () => {
+afterEach(() => {
   vi.useRealTimers();
-  await closeAll?.();
-  closeAll = undefined;
 });
 
-interface StartOptions {
-  /** The test sends round 2 itself, with whatever requestState it likes (2026-07-28 era only). */
-  readonly manualRounds?: boolean;
-}
-
-/** The write server as src/index.ts builds it, with a client whose human answers with `answer`. */
-async function start(era: Era, answer?: () => Promise<ElicitResult>, options: StartOptions = {}) {
+async function start(era: Era, answer?: HarnessOptions["answer"], options: { manualRounds?: boolean } = {}) {
   const actions: string[] = [];
-  const forms: string[] = [];
-  const codec = createRequestStateCodec({ key: "k".repeat(32), ttlSeconds: 60 });
-  const approvals = createApprovals(codec);
-  const factory = () =>
-    createWriteServer({
-      tools: [probe(actions)],
-      verifyState: codec.verify,
-      registry: {
-        maxLevel: Level.Change,
-        redact: createRedactor([SECRET]),
-        context: (signal, round) => ({ k8s: unusedK8s, approvals, round, signal, log: () => {} }),
-      },
-    }).server;
-
-  const capabilities = answer ? { elicitation: { form: {} } } : {};
-  const inputRequired = { autoFulfill: options.manualRounds !== true };
-  const clientOptions = { capabilities, versionNegotiation: NEGOTIATION[era], inputRequired };
-  const client = new Client({ name: "test-client", version: "0" }, clientOptions);
-  if (answer) {
-    client.setRequestHandler("elicitation/create", async (request) => {
-      forms.push(request.params.message);
-      return answer();
-    });
-  }
-  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  const served = serveStdio(factory, { transport: serverSide });
-  await client.connect(clientSide);
-  closeAll = async () => {
-    await client.close();
-    await served.close();
-  };
-
-  const call = async (target: string, reason = "stuck") => {
-    const result = await client.callTool({ name: "probe_action", arguments: { target, reason } });
-    const text = (result.content as Array<{ text?: string }>)[0]?.text ?? "";
-    return JSON.parse(text);
-  };
-  return { client, call, actions, forms };
+  const h = await harness({ tools: [probe(actions)], era, answer, knownSecrets: [SECRET], ...options });
+  const call = async (target: string, reason = "stuck") => (await h.call("probe_action", { target, reason })).json;
+  return { ...h, call, actions };
 }
-
-const approve = async (): Promise<ElicitResult> => ({ action: "accept", content: { approve: true } });
-const decline = async (): Promise<ElicitResult> => ({ action: "decline" });
 
 describe("the write server", () => {
   it("names itself as the watcher expects, so the watcher refuses it", () => {
     expect(SERVER_NAME).toBe(WRITE_SERVER_NAME);
+  });
+
+  it("exposes exactly its write tools, and none below Level.Change: surface changes are deliberate", () => {
+    const serverAt = (maxLevel: Level) =>
+      createWriteServer({
+        tools: writeTools,
+        verifyState: async () => undefined,
+        registry: { maxLevel, redact: (text) => text, context: unreachableContext },
+      });
+    expect(serverAt(Level.Change).exposed).toEqual(["k8s_rollout_restart"]);
+    expect(serverAt(Level.Read).exposed).toEqual([]);
   });
 });
 

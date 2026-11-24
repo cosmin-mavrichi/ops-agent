@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
     "start": "node dist/src/index.js",
-    "test": "vitest run test/unit"
+    "test": "vitest run test/unit",
+    "test:int": "vitest run test/integration"
   },
   "license": "UNLICENSED",
   "dependencies": {

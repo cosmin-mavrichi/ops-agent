@@ -32,6 +32,8 @@ Cluster spec):
 psql "$ADMIN_URL" -v ops_password="'<a new password>'" -v app_db=app -f deploy/sql/ops_ro.sql
 # Only if the app uses pg-boss:
 psql "$ADMIN_URL" -f deploy/sql/ops_ro_pgboss.sql
+# Only if the app migrates with Prisma, knex or Kysely, after its first migration (rerun if you adopt one later):
+psql "$ADMIN_URL" -f deploy/sql/ops_ro_migrations.sql
 # The CREATE ROLE statement, password included, is now in pg_stat_statements (the agent redacts it, but there is no
 # reason to keep it):
 psql "$ADMIN_URL" -c "SELECT pg_stat_statements_reset();"

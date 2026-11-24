@@ -8,6 +8,7 @@ import { k8sEvents } from "./k8s/events.js";
 import { k8sPgBackups } from "./k8s/pg-backups.js";
 import { k8sPods, type summarizePod } from "./k8s/pods.js";
 import { pgBlocking } from "./postgres/blocking.js";
+import { pgChanges } from "./postgres/changes.js";
 import { pgJobQueues } from "./postgres/job-queues.js";
 import { promHttpHealth } from "./prometheus/http-health.js";
 import { promVolumeUsage } from "./prometheus/volume-usage.js";
@@ -101,6 +102,7 @@ const CHECKS: readonly Check[] = [
     return [`${sessions} waiting on locks; root blockers: pid ${roots}`];
   }),
   check(pgJobQueues, {}, (out) => namedProblems(out.queues.map((queue) => ({ label: queue.name, ...queue })))),
+  check(pgChanges, {}, (out) => out.problems),
   check(redisHealth, {}, (out) => out.warnings),
   check(redisSlowlog, {}, (out) => out.problems),
   check(searchClusterHealth, {}, (out) => out.problems),
@@ -145,8 +147,8 @@ export const opsTriage = defineTool({
   title: "Triage: every health check at once",
   description:
     "Start here. Runs every configured health check in parallel (unhealthy pods, warning events, failed Jobs and " +
-    "mixed image builds, certificates, " +
-    "backups, volume usage, Postgres lock waits and job queues, Redis/Valkey health and slow commands, search " +
+    "mixed image builds, certificates, backups, volume usage, Postgres lock waits, job queues and stuck " +
+    "migrations, Redis/Valkey health and slow commands, search " +
     "cluster health and node pressure) and returns only what looks wrong, grouped by the tool that found it, " +
     "plus the checks that found nothing (`clean`), those that could not run (`unavailable`: unreachable, refused " +
     "or timed out, which can be the incident itself) and those for software this stack does not run " +

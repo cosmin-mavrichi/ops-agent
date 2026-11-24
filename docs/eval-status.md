@@ -34,6 +34,7 @@ stopping to fix each failure and rerunning the fix 3 times before going on. Tota
 | api-db-login         | correct   | yes  | new (2026-11-24): found through prom_http_health and the api logs      |
 
 Not run yet (what changed, step 1): `bad-deploy` and `deploy-red-herring`, which use the new `k8s_changes`.
+Not run yet (what changed, step 2): `migration-lock` and `db-setting-changed`, which use the new `pg_changes`.
 
 Agent cost per full pass: $0.0245 before compact output, $0.0213 after (−13%; one run each, so noisy).
 

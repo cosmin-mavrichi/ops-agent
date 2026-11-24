@@ -37,6 +37,13 @@ Short, three parts, no long write-up:
 | bad-deploy         | Checkout started failing a few minutes ago; browsing the shop still works. What's wrong? | the api's new version (1.5.0), rolled out minutes ago (the only change), fails every checkout with a TypeError; the pod stays Ready | roll the api back to the previous revision, then fix the bug | `k8s_changes` (new revision), `api` logs       |
 | deploy-red-herring | as cache-full                                                                            | as cache-full; names the full cache and does not name the mailer rollout shortly before as a cause                                  | as cache-full                                                | `redis_health`; `k8s_changes` shows the mailer |
 
+### What changed in the database (`pg_changes`)
+
+| id                 | symptom (what the agent gets)                                                                       | expected root cause                                                                                                                                               | expected fix                                                                                        | where to look                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| migration-lock     | We deployed api 1.6.0 a while ago and it never came up; the old version is still the one serving.   | the new pod's migrate init container fails on every start: the knex migration lock is held in the database, left by an earlier run that crashed                   | make sure no migration runs, release the lock (`knex migrate:unlock`), let the init container retry | `pg_changes` (lock held), `k8s_pods`, the `migrate` container's logs |
+| db-setting-changed | Data exports started failing a few minutes ago with connection errors; the rest of the app is fine. | `idle_in_transaction_session_timeout` was set to 2s with ALTER SYSTEM and reloaded minutes ago; exports hold a transaction open while writing, so they are killed | reset the setting and reload, or a longer value for the exporting role                              | `pg_changes` (reload, the setting), `api` logs                       |
+
 ## Checked in code on every run
 
 - **allowed tools only**: only the server's read-only tools;

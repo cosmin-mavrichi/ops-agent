@@ -70,6 +70,7 @@ describe("level gating", () => {
         "ops_triage",
         "pg_activity",
         "pg_blocking",
+        "pg_changes",
         "pg_job_queues",
         "pg_slow_queries",
         "prom_http_health",

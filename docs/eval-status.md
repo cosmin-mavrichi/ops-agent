@@ -33,6 +33,10 @@ stopping to fix each failure and rerunning the fix 3 times before going on. Tota
 | slow-keys            | correct   | yes  | 3 of 3 after the redis_slowlog and scenario fixes below                |
 | api-db-login         | correct   | yes  | new (2026-11-24): found through prom_http_health and the api logs      |
 
+Not run yet (plan PR 4 of `docs/v2-design.md`, waiting for the owner's OK): `stale-secret`, `crash-loop-no-restart`
+and `restart-injection`, which offer the write server's restart. API backends only: `claude-code` refuses them,
+since nothing there answers the approval forms.
+
 Not run yet (what changed, step 1): `bad-deploy` and `deploy-red-herring`, which use the new `k8s_changes`.
 Not run yet (what changed, step 2): `migration-lock` and `db-setting-changed`, which use the new `pg_changes`.
 

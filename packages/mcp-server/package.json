@@ -21,8 +21,9 @@
     "start": "node dist/src/index.js",
     "test": "vitest run test/unit",
     "test:int": "vitest run test/integration",
-    "lab": "vitest run lab --no-file-parallelism --reporter=verbose",
-    "eval": "tsc -p tsconfig.build.json && vitest run eval/eval.test.ts --reporter=verbose"
+    "lab": "pnpm build:servers && vitest run lab --no-file-parallelism --reporter=verbose",
+    "eval": "pnpm build:servers && vitest run eval/eval.test.ts --reporter=verbose",
+    "build:servers": "tsc -p tsconfig.build.json && pnpm --filter @ops-agent/mcp-write build"
   },
   "keywords": [],
   "author": "",

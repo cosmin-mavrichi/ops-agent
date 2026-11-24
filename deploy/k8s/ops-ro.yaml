@@ -24,6 +24,14 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log", "events"]
     verbs: ["get", "list", "watch"]
+  # What changed (k8s_changes): rollouts from ReplicaSets, and Jobs such as migrations. Their pod templates hold
+  # env like pods do; the tool reads only images, revision annotations and Job status.
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
   # cert-manager status only. The issued keys stay in Secrets (not granted); CertificateRequests are left
   # out because the Certificate and Issuer status already say why issuance fails.
   - apiGroups: ["cert-manager.io"]

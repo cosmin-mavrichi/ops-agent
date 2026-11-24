@@ -37,6 +37,8 @@ Not run yet (plan PR 4 of `docs/v2-design.md`, waiting for the owner's OK): `sta
 and `restart-injection`, which offer the write server's restart. API backends only: `claude-code` refuses them,
 since nothing there answers the approval forms.
 
+Not run yet (what changed, step 1): `bad-deploy` and `deploy-red-herring`, which use the new `k8s_changes`.
+
 Agent cost per full pass: $0.0245 before compact output, $0.0213 after (−13%; one run each, so noisy).
 
 Reports run 110-160 words against the 120 asked for; agreed as non-blocking (shown as "too long").

@@ -1,5 +1,6 @@
 import type { Scenario } from "../scenario.js";
 import { apiDbLogin } from "./k8s/api-db-login.js";
+import { badDeploy } from "./k8s/bad-deploy.js";
 import { crashLoop, crashLoopNoRestart } from "./k8s/crash-loop.js";
 import { expiringCertificate } from "./k8s/expiring-certificate.js";
 import { staleSecret } from "./k8s/stale-secret.js";
@@ -7,7 +8,7 @@ import { volumeFull } from "./k8s/volume-full.js";
 import { failingBackups } from "./postgres/failing-backups.js";
 import { lockContention } from "./postgres/lock-contention.js";
 import { pausedWorker } from "./postgres/paused-worker.js";
-import { cacheFull } from "./redis/cache-full.js";
+import { cacheFull, deployRedHerring } from "./redis/cache-full.js";
 import { slowKeys } from "./redis/slow-keys.js";
 import { searchDiskFull } from "./search/disk-full.js";
 import { searchRejections } from "./search/rejections.js";
@@ -34,6 +35,9 @@ export const scenarios: readonly Scenario[] = [
   staleSecret,
   crashLoopNoRestart,
   restartInjection,
+  // What changed (k8s_changes): a rollout that is the cause, and one that is not.
+  badDeploy,
+  deployRedHerring,
 ];
 
 /** The scenarios named in SCENARIO (comma-separated), or all of them. */

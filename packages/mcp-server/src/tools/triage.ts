@@ -3,6 +3,7 @@ import { TimeoutError, withTimeout } from "../lib/limits.js";
 import { describeSpan } from "../lib/units.js";
 import { type Adapter, defineTool, Level, type ToolContext, type ToolDef, ToolError } from "../types.js";
 import { k8sCertificates } from "./k8s/certificates.js";
+import { k8sChanges } from "./k8s/changes.js";
 import { k8sEvents } from "./k8s/events.js";
 import { k8sPgBackups } from "./k8s/pg-backups.js";
 import { k8sPods, type summarizePod } from "./k8s/pods.js";
@@ -80,6 +81,7 @@ const CHECKS: readonly Check[] = [
         `${describeSpan(event.last_seen_ago_s)} ago: ${event.message ?? "no message"}`,
     ),
   ),
+  check(k8sChanges, {}, (out) => out.problems),
   check(k8sCertificates, {}, (out) =>
     namedProblems(out.certificates.map((cert) => ({ label: `${cert.namespace}/${cert.name}`, ...cert }))),
   ),
@@ -142,7 +144,8 @@ export const opsTriage = defineTool({
   level: Level.Read,
   title: "Triage: every health check at once",
   description:
-    "Start here. Runs every configured health check in parallel (unhealthy pods, warning events, certificates, " +
+    "Start here. Runs every configured health check in parallel (unhealthy pods, warning events, failed Jobs and " +
+    "mixed image builds, certificates, " +
     "backups, volume usage, Postgres lock waits and job queues, Redis/Valkey health and slow commands, search " +
     "cluster health and node pressure) and returns only what looks wrong, grouped by the tool that found it, " +
     "plus the checks that found nothing (`clean`), those that could not run (`unavailable`: unreachable, refused " +

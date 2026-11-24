@@ -20,7 +20,8 @@ const ACCEPT_JSON_OR_TEXT = "application/json, */*";
 
 /**
  * Read-only Kubernetes client: GET only, authenticated as a ServiceAccount whose RBAC allows
- * get/list/watch on pods, pods/log and events (deploy/k8s/ops-ro.yaml). No exec, no writes.
+ * get/list/watch on pods, pods/log, events, ReplicaSets, Jobs and some operators' status (deploy/k8s/ops-ro.yaml).
+ * No exec, no writes.
  */
 export function createK8sClient(cfg: K8sConfig): K8sClient {
   const maxBytes = cfg.maxResponseBytes ?? 4 * 1024 * 1024;

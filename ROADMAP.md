@@ -175,17 +175,37 @@ done.
 Ideas from the on-call side (2026-11-24): what costs time or sleep on a self-hosted stack, and what the agent could
 do about it. Roughly in order of value; each is its own PR, read-only unless it says otherwise.
 
-| Idea                       | The annoyance                                                                  | What the agent does                                                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **What changed**           | Most incidents follow a deploy or config change; finding it is the slow part   | `k8s_changes`: recent rollouts (image, revision, when) per deployment from ReplicaSets; triage and reports say "started 3 min after deploy" |
-| **Rollback** (v2)          | A bad deploy's usual fix is going back                                         | `k8s_rollout_undo` after `k8s_rollout_restart`, same approval flow, justified by "what changed"                                             |
-| **Failing jobs**           | A nightly CronJob (backup, report) fails silently for weeks                    | `k8s_jobs`: failed and missed CronJob runs, last success; a triage check                                                                    |
-| **Slow but no error**      | CPU limits throttle the app, or memory creeps toward an OOM kill               | `prom_pod_resources`: CPU throttling and memory against limits per pod, from Prometheus; a triage check                                     |
-| **Daily digest**           | Slow problems (cert in 10 days, disk full in a week) only alert when urgent    | The watcher sends one daily summary of warnings that are not incidents yet; no model needed                                                 |
-| **Snooze and maintenance** | Alerts during a planned deploy, or about something already acknowledged        | Snoozes with an expiry and maintenance windows in the `ops-agent` ConfigMap (no redeploy to change them)                                    |
-| **Service notes**          | The agent doesn't know "the worker must never run 2 replicas" or who owns what | Notes per service in the `ops-agent` ConfigMap, read by name only (`resourceNames`): ops-ro still reads no other ConfigMap                  |
-| **Incident summary**       | Writing up what happened afterwards                                            | When an incident resolves, the watcher writes a short summary: timeline, cause, fix, from its own reports                                   |
-| **Ingress errors**         | 502s and 504s at the ingress, with the app's own metrics looking fine          | Read ingress-nginx's request metrics in `prom_http_health` too                                                                              |
+| Idea                       | The annoyance                                                                  | What the agent does                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **What changed** (doing)   | Most incidents follow a deploy or config change; finding it is the slow part   | One timeline of changes from every source the agent can read; Kubernetes first (`k8s_changes`), then the database, cache and git (below) |
+| **Rollback** (v2)          | A bad deploy's usual fix is going back                                         | `k8s_rollout_undo` after `k8s_rollout_restart`, same approval flow, justified by "what changed"                                          |
+| **Failing jobs**           | A nightly CronJob (backup, report) fails silently for weeks                    | `k8s_jobs`: failed and missed CronJob runs, last success; a triage check                                                                 |
+| **Slow but no error**      | CPU limits throttle the app, or memory creeps toward an OOM kill               | `prom_pod_resources`: CPU throttling and memory against limits per pod, from Prometheus; a triage check                                  |
+| **Daily digest**           | Slow problems (cert in 10 days, disk full in a week) only alert when urgent    | The watcher sends one daily summary of warnings that are not incidents yet; no model needed                                              |
+| **Snooze and maintenance** | Alerts during a planned deploy, or about something already acknowledged        | Snoozes with an expiry and maintenance windows in the `ops-agent` ConfigMap (no redeploy to change them)                                 |
+| **Service notes**          | The agent doesn't know "the worker must never run 2 replicas" or who owns what | Notes per service in the `ops-agent` ConfigMap, read by name only (`resourceNames`): ops-ro still reads no other ConfigMap               |
+| **Incident summary**       | Writing up what happened afterwards                                            | When an incident resolves, the watcher writes a short summary: timeline, cause, fix, from its own reports                                |
+| **Ingress errors**         | 502s and 504s at the ingress, with the app's own metrics looking fine          | Read ingress-nginx's request metrics in `prom_http_health` too                                                                           |
+
+**What changed: plan** (2026-11-24). One timeline of changes, each source optional like an adapter, a missing one
+reported as `not_installed`. A change close in time is a lead, not a cause: the lab tests that (`deploy-red-herring`).
+
+1. **Kubernetes** (landed, PR pending review): `k8s_changes` reads ReplicaSets, Jobs and pods (RBAC: `list` on
+   `replicasets` and `jobs`). It reports each rollout as an image change, a plain restart, a config checksum change
+   or "same images, template changed" (env, config, resources or probes; templates are compared by hash, never
+   returned), rollbacks, Jobs and how they ended, and pods of one ReplicaSet running different builds of one tag.
+   Failed Jobs and mixed builds are `problems`, so `ops_triage` reports them. Integration test on k3s; lab scenarios
+   `bad-deploy` and `deploy-red-herring`, not yet run. Left: scaling changes (the controller's events expire within
+   the hour; `k8s_events` with `warnings_only: false` shows them meanwhile).
+2. **Database**: Postgres restarts and config reloads (`pg_postmaster_start_time`, `pg_conf_load_time`, settings
+   pending a restart: all readable by `pg_monitor`), recent `ANALYZE` runs, and migrations from the migration tools'
+   history tables as data (Prisma `_prisma_migrations` as the reference; Kysely, knex; Drizzle only if its table
+   records when a migration ran), each granted SELECT on its name and time columns only, as pg-boss is. Scenarios:
+   migration-lock, db-setting-changed.
+3. **Cache and search**: Valkey restarts, failovers and flushes (key count drop); search node restarts. Scenario:
+   cache-flushed.
+4. **Network and git**: NetworkPolicies (`list networkpolicies`); the deployed git revision from Argo CD or Flux
+   status, or a commit annotation the pipeline sets.
 
 ## Backlog
 

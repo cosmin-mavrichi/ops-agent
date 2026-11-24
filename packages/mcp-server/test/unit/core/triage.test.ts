@@ -64,7 +64,9 @@ describe("ops_triage (unit)", () => {
     expect(res.json.problems.k8s_events[0]).toMatch(/^BackOff on Pod\/worker-1 in app, 4 times, last 30 seconds ago/);
     expect(res.json.problems.redis_slowlog[0]).toContain("KEYS from reports");
     expect(res.json.problems.redis_health.length).toBeGreaterThan(0);
-    expect(res.json.clean).toEqual(expect.arrayContaining(["k8s_certificates", "k8s_pg_backups", "pg_blocking"]));
+    expect(res.json.clean).toEqual(
+      expect.arrayContaining(["k8s_changes", "k8s_certificates", "k8s_pg_backups", "pg_blocking"]),
+    );
     expect(res.json.not_installed.pg_job_queues).toMatch(/pg-boss/);
     expect(res.json.unavailable).toEqual({});
   });

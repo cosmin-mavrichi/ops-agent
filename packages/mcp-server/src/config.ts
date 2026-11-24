@@ -74,7 +74,7 @@ function k8sConfig(vars: z.infer<typeof Env>) {
   return { server, namespaces, tokenFile: vars.OPS_K8S_TOKEN_FILE, caFile: vars.OPS_K8S_CA_FILE };
 }
 
-function splitList(value: string): string[] {
+export function splitList(value: string): string[] {
   return value
     .split(",")
     .map((item) => item.trim())

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { Client, type Tool } from "@modelcontextprotocol/client";
+import { Client, type Implementation, type Tool } from "@modelcontextprotocol/client";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { z } from "zod";
 import type { ToolServer } from "./agent.js";
@@ -34,6 +34,20 @@ export function serverEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return { ...getDefaultEnvironment(), ...Object.fromEntries(own) };
 }
 
+/** The write server's name (packages/mcp-write, `SERVER_NAME`). */
+export const WRITE_SERVER_NAME = "ops-write";
+
+/**
+ * The watcher runs unattended, and the write server trusts its client to show each approval form to a human, so
+ * the watcher must never connect to it. A guard against misconfiguration: the boundary is that the watcher never
+ * holds a write credential.
+ */
+export function assertNotWriteServer(server: Implementation | undefined): void {
+  if (server?.name === WRITE_SERVER_NAME) {
+    throw new Error(`OPS_WATCH_SERVER points at the write server (${WRITE_SERVER_NAME}); the watcher only reads`);
+  }
+}
+
 export interface Server {
   readonly tools: ToolServer;
   triage(): Promise<Triage>;
@@ -50,8 +64,15 @@ const textOf = (content: unknown) =>
 export async function connectServer(entry: string, env: Record<string, string>, onClose: () => void): Promise<Server> {
   const transport = new StdioClientTransport({ command: process.execPath, args: [entry], env, stderr: "inherit" });
   const client = new Client({ name: "ops-watcher", version: "1.0.0" });
-  client.onclose = onClose;
   await client.connect(transport);
+  try {
+    assertNotWriteServer(client.getServerVersion());
+  } catch (err) {
+    await client.close();
+    throw err;
+  }
+  // Set only now, so a refused server is reported as refused rather than as a server that exited.
+  client.onclose = onClose;
 
   const call = async (name: string, input: Record<string, unknown>) => {
     const result = await client.callTool({ name, arguments: input });

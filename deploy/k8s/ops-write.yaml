@@ -1,0 +1,51 @@
+# Write identity for the v2 write server (packages/mcp-write, docs/v2-design.md). Apply once:
+#   kubectl apply -f deploy/k8s/ops-write.yaml
+# For each extra namespace the write server may act in, copy the Role and RoleBinding with that namespace and add
+# it to the write server's OPS_K8S_NAMESPACES.
+#
+# No token Secret on purpose: make a short-lived token per session, so no laptop holds a write credential for
+# longer than that:
+#   kubectl create token ops-write -n ops --duration=1h
+# Never give this ServiceAccount to the watcher or any pod: v2.0 runs the write server only next to a human.
+#
+# Deliberately absent: delete, create, update, scale, secrets, configmaps, pods/log, pods/exec, and every other
+# resource. A restart is a patch of the pod template's restartedAt annotation, like `kubectl rollout restart`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ops
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ops-write
+  namespace: ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops-write
+  namespace: app
+rules:
+  # list: the rate limit counts the restarts in the namespace from each deployment's restartedAt annotation.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  # The evidence shown on the approval form: pod status, read through the read server's summarizePod.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-write
+  namespace: app
+subjects:
+  - kind: ServiceAccount
+    name: ops-write
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ops-write

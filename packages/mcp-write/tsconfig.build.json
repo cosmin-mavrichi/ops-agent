@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  // The build reads the read server's emitted declarations instead, so its sources stay out of this rootDir.
+  "compilerOptions": { "noEmit": false, "outDir": "dist", "rootDir": ".", "customConditions": [] },
+  "include": ["src"]
+}

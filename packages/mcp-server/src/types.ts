@@ -72,8 +72,20 @@ export interface ToolContext {
   log: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
-/** `O` is what `run` returns, so a tool that builds on another (ops_triage) reads its output typed. */
-export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape, O = unknown> {
+/**
+ * What a client sent back in a multi-round-trip call: the answers to the input a tool asked for, and the state
+ * it handed out with them. Both arrive from the client; only a server that verifies requestState may trust it.
+ */
+export interface Round {
+  readonly inputResponses?: Readonly<Record<string, unknown>>;
+  readonly requestState?: unknown;
+}
+
+/**
+ * `O` is what `run` returns, so a tool that builds on another (ops_triage) reads its output typed. `C` is the
+ * context: the read server's ToolContext, or the write server's own.
+ */
+export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape, O = unknown, C = ToolContext> {
   name: string;
   level: Level;
   title: string;
@@ -84,11 +96,11 @@ export interface ToolDef<S extends z.core.$ZodShape = z.core.$ZodShape, O = unkn
   requires?: readonly Adapter[];
   timeoutMs?: number;
   maxOutputChars?: number;
-  run(args: z.infer<z.ZodObject<S>>, ctx: ToolContext): Promise<O>;
+  run(args: z.infer<z.ZodObject<S>>, ctx: C): Promise<O>;
 }
 
 /** Identity helper that keeps `args` typed from the zod shape and the output typed from `run`. */
-export function defineTool<S extends z.core.$ZodShape, O>(def: ToolDef<S, O>): ToolDef<S, O> {
+export function defineTool<S extends z.core.$ZodShape, O, C = ToolContext>(def: ToolDef<S, O, C>): ToolDef<S, O, C> {
   return def;
 }
 

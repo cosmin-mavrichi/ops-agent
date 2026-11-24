@@ -1,0 +1,32 @@
+{
+  "name": "@ops-agent/mcp-write",
+  "version": "1.0.0",
+  "description": "The write MCP server (v2): actions on infra, each one approved by a human in the MCP client.",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p .",
+    "start": "node dist/src/index.js",
+    "test": "vitest run test/unit"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@ops-agent/mcp-server": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@ops-agent/watcher": "workspace:*",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

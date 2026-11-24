@@ -23,16 +23,37 @@ interface Exchange {
   readonly res: IncomingMessage;
 }
 
+export interface PatchOptions extends GetOptions {
+  readonly body: string;
+  /** The patch format, e.g. application/strategic-merge-patch+json. */
+  readonly contentType: string;
+}
+
+interface Payload {
+  readonly body: string;
+  readonly contentType: string;
+}
+
 /** One GET, the only method the read-only adapters send. Fails on silence, abort, early close or size. */
-export async function httpGet(url: URL, opts: GetOptions): Promise<GetResult> {
+export function httpGet(url: URL, opts: GetOptions): Promise<GetResult> {
+  return exchange(url, "GET", opts);
+}
+
+/** One PATCH, sent only by the write server's adapter (packages/mcp-write); same limits as httpGet. */
+export function httpPatch(url: URL, opts: PatchOptions): Promise<GetResult> {
+  return exchange(url, "PATCH", opts, { body: opts.body, contentType: opts.contentType });
+}
+
+async function exchange(url: URL, method: "GET" | "PATCH", opts: GetOptions, payload?: Payload): Promise<GetResult> {
+  const contentType = payload ? { "content-type": payload.contentType } : {};
   const options: RequestOptions & { ca?: string } = {
-    method: "GET",
-    headers: { ...opts.headers },
+    method,
+    headers: { ...opts.headers, ...contentType },
     timeout: opts.timeoutMs,
     signal: opts.signal,
     ...(opts.ca ? { ca: opts.ca } : {}),
   };
-  const { req, res } = await sendRequest(url, options, opts.label);
+  const { req, res } = await sendRequest(url, options, opts.label, payload?.body);
   const body = await readBody(req, res, opts.maxBytes, opts.label);
   return { status: res.statusCode ?? 0, body };
 }
@@ -45,14 +66,14 @@ export class ConnectionError extends Error {
 }
 
 /** Resolves once the response headers arrive. */
-function sendRequest(url: URL, options: RequestOptions, label: string): Promise<Exchange> {
+function sendRequest(url: URL, options: RequestOptions, label: string, body?: string): Promise<Exchange> {
   const request = url.protocol === "https:" ? httpsRequest : httpRequest;
   return new Promise((resolve, reject) => {
     const req = request(url, options, (res) => resolve({ req, res }));
     req.on("timeout", () => req.destroy(new Error(`${label}: request timed out`)));
     // Once the response has arrived the promise is settled, and readBody reports later errors.
     req.on("error", (err) => reject(new ConnectionError(label, err)));
-    req.end();
+    req.end(body);
   });
 }
 

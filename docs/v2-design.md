@@ -10,12 +10,12 @@ the first version (v2.0) and what comes right after it. The prerequisites it bui
   yes. The watcher, which runs unattended, only _proposes_ actions in its reports in v2.0.
 - **The write server trusts its client to show the form to a human.** Any client can answer the form in code (the
   eval's client does, on purpose), so the write server must never be reachable by an unattended client. Two checks
-  guard against misconfiguration: the write server refuses a client that does not declare form support
-  (elicitation), which the watcher's client does not (it is the SDK's bare `Client`, whose capabilities default to
-  none); and the watcher refuses to start if the server it connects to (`OPS_WATCH_SERVER`) names itself the write
-  server. Both are tested. Both rest on what the client and server say about themselves, so neither is the
-  boundary: **the boundary is the credentials.** The watcher never holds an `ops-write` token, and no write server
-  runs in the cluster.
+  guard against misconfiguration: a client that does not declare form support (elicitation) never gets a form, so
+  nothing acts (the SDK refuses the input request on both protocol eras), and the watcher's client does not declare
+  it (it is the SDK's bare `Client`, whose capabilities default to none); and the watcher refuses to start if the
+  server it connects to (`OPS_WATCH_SERVER`) names itself the write server. Both are tested. Both rest on what the
+  client and server say about themselves, so neither is the boundary: **the boundary is the credentials.** The
+  watcher never holds an `ops-write` token, and no write server runs in the cluster.
 - **Out-of-band approval next (v2.1).** For simple fixes such as restarting a pod stuck on a config that has since
   been fixed: the watcher proposes, you approve later with a command, and the action runs then. Sketched below.
 - **First action: restart a deployment** (`k8s_rollout_restart`). It needs the smallest permission (`patch` on
@@ -58,8 +58,10 @@ round 2 (the client calls again with your answer)
   8. audit           one JSON line: action, reason, approval (yes/no, client name), dry run, result
 ```
 
-Any "no", a closed form, an expired or tampered requestState, or a client that cannot show forms means the action
-does not run. The tool then returns "not approved" to the agent, which is a normal answer, not an error.
+Any "no", a closed form, or a client that cannot show forms means the action does not run. The tool then returns
+"not approved" to the agent, which is a normal answer, not an error. An expired or tampered requestState never
+reaches the tool: the SDK refuses the call with a protocol error ("Invalid or expired requestState"), and the agent
+proposes again.
 
 **Timeouts per phase.** The registry's timeout wraps each round, not the whole flow, so a slow approval is never a
 tool timeout (a unit test holds the answer back past the timeout and expects an approval, not `timeout`). Round 1
@@ -70,8 +72,11 @@ itself is bounded by the requestState's expiry (15 minutes) and, on 2025-era con
 
 **Why a signed requestState.** It travels through the client between rounds, so the client or the model could
 change it. It is sealed with the SDK's HMAC codec (`createRequestStateCodec`, verified in
-`ServerOptions.requestState.verify` before the handler runs), bound to the tool and its arguments, with a key made
-per process: one stdio process serves both rounds. It is signed, not encrypted, so it holds only names and the
+`ServerOptions.requestState.verify` before the handler runs), with a key made per process: one stdio process
+serves both rounds. It holds the tool's name and a hash of its arguments, so an approval acts only on the call it
+was asked for, and a one-time id, so each form is decided once: a client that sends round 2 again, or sends a decline
+again as an approval, does not act. It is signed, not encrypted, so the client can read it: it holds a hash of the
+arguments rather than their text (the agent's reason can repeat a secret from logs), the names and the
 resourceVersion, nothing secret.
 
 **Why the rate limit reads the cluster.** Each Claude Code session starts its own server, so counters in memory
@@ -90,13 +95,17 @@ exactly those two cases. v2.0 keeps the resourceVersion.
 
 Same idea as the read server's three layers, for writes:
 
-1. **Credentials.** A new ServiceAccount `ops-write` whose Role allows only `get` and `patch` on `deployments`, and
-   `get`/`list` on `pods`, in the granted namespaces (`deploy/k8s/ops-write.yaml`). No delete, no create, no
-   secrets, no other resources. Its token is short-lived and made per session
-   (`kubectl create token ops-write --duration=1h`); there is no long-lived token Secret, so a laptop never holds a
-   write credential for longer than a session. Reading pods means `ops-write` can see pod specs, and specs hold
-   `env`: the evidence in step 3 is built with the read server's `summarizePod` and its `Pod` type, which leave
-   `env`, `command` and `args` out, so the write server has no second pod reader that could return them.
+1. **Credentials.** A new ServiceAccount `ops-write` whose Role allows only `get`, `list` and `patch` on
+   `deployments` (`list` for the rate limit), and `get`/`list` on `pods`, in the granted namespaces
+   (`deploy/k8s/ops-write.yaml`). No delete, no create, no secrets, no other resources. Its token is short-lived and
+   made per session (`kubectl create token ops-write -n ops --duration=1h`); there is no long-lived token Secret, so a
+   laptop never holds a write credential for longer than a session. Reading pods and deployments means `ops-write`
+   can see pod specs and pod templates, and both hold `env`. Pod evidence in step 3 is built with the read server's
+   `summarizePod` and its `Pod` type, which leave `env`, `command` and `args` out, so the write server has no second
+   pod reader that could return them. Deployments get the same treatment in PR 3: a `Deployment` type with only the
+   metadata the action needs (name, resourceVersion, generation, the `restartedAt` annotation) and replica status,
+   never the template's containers, and a secret planted in a deployment's `env` that must not appear in any output
+   or form.
 2. **Adapter.** The write server's Kubernetes client sends only `GET` and `PATCH`, and `PATCH` only to
    `/apis/apps/v1/namespaces/<ns>/deployments/<name>` with the restart annotation; anything else is refused before
    it is sent.
@@ -170,7 +179,7 @@ v2.0 works.
 
 ## Plan: one PR each
 
-1. This design doc.
+1. This design doc (#26; this revision #29).
 2. `packages/mcp-write` skeleton: config, the write Kubernetes adapter, `ops-write` RBAC, shared exports from the
    read server (`summarizePod` included), the registry's rounds, the approval helper with the signed requestState,
    the client checks both ways (form support; the watcher refusing a write server). No tools yet.

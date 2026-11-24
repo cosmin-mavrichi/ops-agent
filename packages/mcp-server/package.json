@@ -2,6 +2,13 @@
   "name": "@ops-agent/mcp-server",
   "version": "1.0.0",
   "description": "",
+  "exports": {
+    "./shared": {
+      "@ops-agent/source": "./src/shared.ts",
+      "types": "./dist/src/shared.d.ts",
+      "default": "./dist/src/shared.js"
+    }
+  },
   "directories": {
     "test": "test"
   },

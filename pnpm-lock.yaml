@@ -219,6 +219,34 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(yaml@2.9.1))
 
+  packages/mcp-write:
+    dependencies:
+      '@modelcontextprotocol/server':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@ops-agent/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@ops-agent/watcher':
+        specifier: workspace:*
+        version: link:../watcher
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.1
+        version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(yaml@2.9.1))
+
   packages/watcher:
     dependencies:
       '@anthropic-ai/sdk':

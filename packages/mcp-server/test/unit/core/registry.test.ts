@@ -1,6 +1,7 @@
 import { ProtocolError } from "@modelcontextprotocol/client";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { KNOWN_SECRET_MARKER } from "../../../src/lib/redact.js";
 import { allTools } from "../../../src/tools/index.js";
 import { defineTool, Level, type ToolDef, ToolError } from "../../../src/types.js";
 import { useHarness } from "../../harness.js";
@@ -197,5 +198,11 @@ describe("call pipeline", () => {
     await h.call("echo", { msg: "a" });
     expect(h.audit).toHaveLength(1);
     expect(h.audit[0]).toMatchObject({ tool: "echo", ok: true, args: { msg: "a" } });
+  });
+
+  it("redacts the arguments it audits", async () => {
+    const h = await harness({ tools: [echo], knownSecrets: ["topsecretvalue"] });
+    await h.call("echo", { msg: "the password is topsecretvalue" });
+    expect(h.audit[0]?.args).toEqual({ msg: `the password is ${KNOWN_SECRET_MARKER}` });
   });
 });

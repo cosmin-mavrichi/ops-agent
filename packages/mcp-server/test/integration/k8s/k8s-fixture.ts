@@ -21,6 +21,8 @@ export interface K3sFixture {
   ca: string;
   kubectl(...args: string[]): Promise<string>;
   apply(yaml: string): Promise<void>;
+  /** Waits until the CustomResourceDefinitions (`crd/<name>`) are served. */
+  waitEstablished(...crds: string[]): Promise<void>;
   /** Polls a jsonpath on an object until `done` accepts the value. */
   waitFor(resource: string, jsonpath: string, done: (value: string) => boolean, timeoutMs?: number): Promise<void>;
   /** Copies a directory out of a running pod into a new local temp dir, symlinks included. */
@@ -70,6 +72,10 @@ export async function startK3s(): Promise<K3sFixture> {
     connect,
     kubectl,
     apply,
+    // A CRD created a moment ago has no status.conditions yet, and `kubectl wait` fails on that at once
+    // instead of waiting, so retry it; a real 60s timeout still ends past the deadline and fails.
+    waitEstablished: (...crds) =>
+      waitUntil(() => kubectl("wait", "--for=condition=Established", ...crds, "--timeout=60s"), 60_000),
     async waitFor(resource, jsonpath, done, timeoutMs = 150_000) {
       const deadline = Date.now() + timeoutMs;
       let last = "";

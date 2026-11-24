@@ -19,12 +19,12 @@ export async function installCloudNativePgCrds(k3s: K3sFixture): Promise<void> {
   const documents = (await response.text()).split(/^---$/m);
   const crds = documents.filter((doc) => /^kind: CustomResourceDefinition$/m.test(doc));
   await applyServerSide(k3s, crds.join("\n---\n"));
-  await k3s.kubectl("wait", "--for=condition=Established", ...CRDS, "--timeout=60s");
+  await k3s.waitEstablished(...CRDS);
 }
 
 /** The operator too, as a cluster would run it. */
 export async function installCloudNativePg(k3s: K3sFixture): Promise<void> {
   await k3s.kubectl("apply", "--server-side", "-f", MANIFEST);
-  await k3s.kubectl("wait", "--for=condition=Established", ...CRDS, "--timeout=60s");
+  await k3s.waitEstablished(...CRDS);
   await k3s.kubectl("rollout", "status", "deployment/cnpg-controller-manager", "-n", "cnpg-system", "--timeout=180s");
 }

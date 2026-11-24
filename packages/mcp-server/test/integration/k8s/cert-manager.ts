@@ -8,12 +8,12 @@ const CRDS = ["certificates.cert-manager.io", "issuers.cert-manager.io"].map((cr
 /** Only the CustomResourceDefinitions: the API exists, but no controller fills in status. */
 export async function installCertManagerCrds(k3s: K3sFixture): Promise<void> {
   await k3s.kubectl("apply", "-f", `${RELEASE}/cert-manager.crds.yaml`);
-  await k3s.kubectl("wait", "--for=condition=Established", ...CRDS, "--timeout=60s");
+  await k3s.waitEstablished(...CRDS);
 }
 
 /** The whole of cert-manager, controllers included, as a cluster would run it. */
 export async function installCertManager(k3s: K3sFixture): Promise<void> {
   await k3s.kubectl("apply", "-f", `${RELEASE}/cert-manager.yaml`);
-  await k3s.kubectl("wait", "--for=condition=Established", ...CRDS, "--timeout=60s");
+  await k3s.waitEstablished(...CRDS);
   await k3s.kubectl("wait", "--for=condition=Available", "deployment", "--all", "-n", "cert-manager", "--timeout=180s");
 }

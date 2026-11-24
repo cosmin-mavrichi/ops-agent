@@ -15,7 +15,7 @@ merge to `main` when green.
 | 5a  | Redis/Valkey: `redis_health` (memory vs maxmemory, OOM rejections, clients, persistence, warnings) and `redis_slowlog` (masked key shapes), keyless ACL user; lab scenarios cache-full and slow-keys           | done   |
 | 5b  | Disk/PVC usage, backup freshness (CloudNativePG backup status), certificate expiry (cert-manager) tools + scenarios: volume at 95%, paused worker / queue backlog, stale backup, expiring certificate          | done   |
 | 5c  | Search engines, read-only: OpenSearch and Elasticsearch (see below)                                                                                                                                            | done   |
-| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | doing  |
+| 6   | Agent loop + evals (`pnpm eval`): root cause named, only allowed tools, under turn/cost budget, no planted secret in transcript; record redacted tool output for replay                                        | done   |
 | 7   | Cheaper runs: a watcher runs the tools on a schedule without a model and starts an investigation only when one reports a problem; first-look evidence bundles per area; compact tool output; cheap model first | done   |
 
 **Step 5b, one PR per area:**
@@ -46,7 +46,8 @@ diagnostic APIs, as with Valkey/Redis).
 **Step 6, agent loop and evals.** Built: the agent loop, three backends (own Claude subscription via Claude Code,
 Claude API, DeepSeek), code-checked guardrails, a judge, and a readable report per run. Full pass after the agent
 prompt changes and a slow-keys scenario fix: all 12 diagnosed correctly at least once on the final version, all
-safe; prompt-injection, the flakiest, now passes 5 of 5. Status, results and open items:
+safe; prompt-injection, the flakiest, now passes 5 of 5. Done (2026-11-24): the evals run on the Claude API
+with Haiku; the Claude Code and DeepSeek backends stay as options, not verified for now. Status and results:
 `docs/eval-status.md`.
 
 **Step 7, cheaper runs.** Use code for what code can do and the model only for judgment. Every change is measured
@@ -166,9 +167,6 @@ Smaller items, not tied to a step. Move into a step when picked up.
 - **Watcher reports to a webhook.** Later, not a priority: POST each report as JSON to a configured URL (Slack
   incoming webhook, ntfy, Discord, own endpoint). Reports are log and file only for now (`docs/watcher.md`); note
   that a webhook sends report text out of the cluster.
-- **Error-rate and latency checks for the app.** `ops_triage` watches status, not logs, so an app that returns 500s
-  or gets slow without crashing or failing a probe goes unnoticed. Add a triage check (code only, still free): error
-  rate and latency from Prometheus when the app exposes HTTP metrics, or a count of ERROR lines in recent logs.
 - **Watcher state across restarts.** Incidents live in memory, so a restart re-investigates every open problem once
   (bounded by the hourly cap). Persist the open incidents next to the report file if that turns out to cost money.
 
@@ -196,6 +194,11 @@ Smaller items, not tied to a step. Move into a step when picked up.
 
 ## Decisions
 
+- **App errors and latency from Prometheus** (2026-11-24). `ops_triage` watched status only, so an app returning
+  500s or slowing down without crashing went unnoticed. `prom_http_health` reads the request duration histogram
+  in its two common namings (OpenTelemetry, prom-client) rather than counting ERROR lines in logs: rates and
+  percentiles are exact and cheap, and log formats vary per app. An app is flagged above the operator's limits
+  (`OPS_HTTP_*`) or when much worse than over the day before the last hour. Lab scenario api-db-login.
 - **Disk usage from Prometheus, not the kubelet** (2026-11-22). Volume usage is only exposed by the kubelet, and
   reading it needs `nodes/proxy`, which can also be used to exec into pods. A Prometheus-compatible query API
   (Prometheus, VictoriaMetrics, Mimir, Thanos) gives `kubelet_volume_stats_*` with no dangerous RBAC.

@@ -6,8 +6,10 @@ import { createRedactor, readSecretsDir } from "@ops-agent/mcp-server/shared";
 import { createK8sWriteClient } from "./adapters/k8s-write.js";
 import { APPROVAL_TTL_S, createApprovals } from "./approval.js";
 import { loadConfig } from "./config.js";
+import { createExclusive } from "./exclusive.js";
 import { createWriteServer } from "./server.js";
 import { writeTools } from "./tools/index.js";
+import { ROLLOUT_TIMING } from "./tools/k8s/rollout-check.js";
 
 const cfg = loadConfig();
 
@@ -28,6 +30,7 @@ const k8s = createK8sWriteClient({
 // A key per process: one stdio process serves both rounds of every approval, and a restart voids open forms.
 const codec = createRequestStateCodec({ key: randomBytes(32), ttlSeconds: APPROVAL_TTL_S });
 const approvals = createApprovals(codec);
+const exclusive = createExclusive();
 
 const handle = serveStdio(
   () => {
@@ -37,7 +40,17 @@ const handle = serveStdio(
       registry: {
         maxLevel: cfg.maxLevel,
         redact,
-        context: (signal, round) => ({ k8s, approvals, round, signal, log }),
+        context: (signal, round) => ({
+          k8s,
+          approvals,
+          exclusive,
+          round,
+          signal,
+          log,
+          now: () => new Date(),
+          rollout: ROLLOUT_TIMING,
+          redact,
+        }),
         audit: (entry) => log("tool_call", { ...entry }),
       },
     });

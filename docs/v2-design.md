@@ -45,17 +45,22 @@ round 1 (no answer yet)
                      and the deployment's resourceVersion
   4. dry run         the same PATCH with ?dryRun=All: the API server checks it without changing anything
   5. ask you         return the confirmation form (action, the agent's reason, the evidence, the dry-run result,
-                     all redacted) and a signed requestState: namespace, deployment, resourceVersion
+                     all redacted) and a signed requestState: the tool, a hash of its arguments, a one-time
+                     id and the resourceVersion
 
          ... you read the form; this time is between rounds and counts against no tool timeout ...
 
 round 2 (the client calls again with your answer)
   6. act             only on "approve", read from a requestState whose signature, expiry and binding hold:
+                     check the rate limits again (other forms may have been approved meanwhile), then
                      PATCH the restartedAt annotation (what `kubectl rollout restart` does) with that
                      resourceVersion; a 409 means it changed meanwhile: "propose again"
-  7. check           "rolled out": new pods ready within 2 minutes; "healthy": none of them restarted in the
-                     60 seconds after; otherwise "rolled out, not yet proven" or "failed"
-  8. audit           one JSON line: action, reason, approval (yes/no, client name), dry run, result
+  7. check           "rolled out": every replica updated, ready and available within 2 minutes; then
+                     `healthy` if no new pod restarted or went unready in the 60 seconds after,
+                     `rolled_out_unhealthy` if one did (a restart was not the fix), `not_rolled_out` otherwise;
+                     `unknown` if the cluster cannot be read after the patch (the restart is still reported)
+  8. audit           JSON lines: the proposal with its dry run, the decision, the result; each with the
+                     action and the redacted reason (the client's name is not recorded yet)
 ```
 
 Any "no", a closed form, or a client that cannot show forms means the action does not run. The tool then returns
@@ -64,9 +69,11 @@ reaches the tool: the SDK refuses the call with a protocol error ("Invalid or ex
 proposes again.
 
 **Timeouts per phase.** The registry's timeout wraps each round, not the whole flow, so a slow approval is never a
-tool timeout (a unit test holds the answer back past the timeout and expects an approval, not `timeout`). Round 1
-is reads and a dry run: the usual budget. Round 2 holds the rollout check (2 minutes plus 60 seconds), so the tool
-sets a round timeout above that, as an outer limit, and the check keeps its own deadlines inside it. The form
+tool timeout (a unit test holds the answer back past the timeout and expects an approval, not `timeout`). The
+registry has one timeout per tool, applied to every round: 4 minutes for the restart, because round 2 holds the
+rollout check (2 minutes plus 60 seconds) and its reads. Round 1 (reads and a dry run) finishes in seconds under the
+same outer limit, and the check keeps its own deadlines inside it, so it ends with an outcome rather than a timeout.
+If the call is cancelled during the check anyway, the audit still records the restart (`check_aborted`). The form
 itself is bounded by the requestState's expiry (15 minutes) and, on 2025-era connections, by the shim's
 `roundTimeoutMs`.
 
@@ -76,8 +83,8 @@ change it. It is sealed with the SDK's HMAC codec (`createRequestStateCodec`, ve
 serves both rounds. It holds the tool's name and a hash of its arguments, so an approval acts only on the call it
 was asked for, and a one-time id, so each form is decided once: a client that sends round 2 again, or sends a decline
 again as an approval, does not act. It is signed, not encrypted, so the client can read it: it holds a hash of the
-arguments rather than their text (the agent's reason can repeat a secret from logs), the names and the
-resourceVersion, nothing secret.
+arguments rather than their text (the agent's reason can repeat a secret from logs), and the resourceVersion, nothing
+secret.
 
 **Why the rate limit reads the cluster.** Each Claude Code session starts its own server, so counters in memory
 reset with every session and are not shared between sessions running side by side. The `restartedAt` annotation is
@@ -102,10 +109,11 @@ Same idea as the read server's three layers, for writes:
    laptop never holds a write credential for longer than a session. Reading pods and deployments means `ops-write`
    can see pod specs and pod templates, and both hold `env`. Pod evidence in step 3 is built with the read server's
    `summarizePod` and its `Pod` type, which leave `env`, `command` and `args` out, so the write server has no second
-   pod reader that could return them. Deployments get the same treatment in PR 3: a `Deployment` type with only the
-   metadata the action needs (name, resourceVersion, generation, the `restartedAt` annotation) and replica status,
-   never the template's containers, and a secret planted in a deployment's `env` that must not appear in any output
-   or form.
+   pod reader that could return them. Deployments get the same treatment: a `Deployment` type with only the metadata
+   the action needs (name, resourceVersion, generation, the `restartedAt` annotation) and replica status, never the
+   template's containers, tested with a secret planted in every deployment's and pod's `env` that must not appear in
+   any output, form or log. The form also shows the agent's reason on one line, so it cannot draw lines that look
+   like the server's own evidence.
 2. **Adapter.** The write server's Kubernetes client sends only `GET` and `PATCH`, and `PATCH` only to
    `/apis/apps/v1/namespaces/<ns>/deployments/<name>` with the restart annotation; anything else is refused before
    it is sent.
@@ -165,9 +173,9 @@ person at the client is the one who approves. A real identity comes with v2.1's 
 - Which protocol revision Claude Code speaks, and that it shows elicitation forms (on 2026-07-28 as
   `inputRequired.elicit`, on 2025-era connections through the SDK's shim). If a client cannot, the tool refuses: no
   form, no action.
-- How long the client waits for round 2, which holds the 3-minute rollout check: if that is under 3 minutes, the
-  tool sends progress notifications during the check, or returns at "rolled out" and leaves "healthy" to a
-  follow-up read.
+- How long the client waits for round 2, which can take up to 4 minutes (the rollout check plus reads): if that is
+  less, the tool sends progress notifications during the check, or returns at "rolled out" and leaves "healthy" to
+  a follow-up read.
 
 ## v2.1: out-of-band approval (sketch)
 
@@ -183,5 +191,7 @@ v2.0 works.
 2. `packages/mcp-write` skeleton: config, the write Kubernetes adapter, `ops-write` RBAC, shared exports from the
    read server (`summarizePod` included), the registry's rounds, the approval helper with the signed requestState,
    the client checks both ways (form support; the watcher refusing a write server). No tools yet.
-3. `k8s_rollout_restart` with the full flow above, its per-round timeouts, unit and integration tests.
+3. `k8s_rollout_restart` with the full flow above, its per-round timeouts, unit and integration tests. The form
+   shows the agent's reason, the deployment's counts and each pod's state with container _reasons_ only: container
+   messages are written by the app (termination messages, crash output) and can argue for the action themselves.
 4. Lab scenarios (restart is the fix; crash loop where it is not; injection asks for one) and one eval run each.

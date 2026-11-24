@@ -51,8 +51,10 @@ setting). Skip this step if you don't run Valkey or Redis.
 ## 3. Read-only Kubernetes access
 
 `deploy/k8s/ops-ro.yaml` creates the `ops` namespace and the `ops-ro` ServiceAccount, allowed to read pods, logs,
-events, cert-manager certificates and CloudNativePG backups in `app` only (no secrets, no exec, no writes). For other
-namespaces, copy its Role and RoleBinding per namespace.
+events, ReplicaSets and Jobs (for what changed), cert-manager certificates and CloudNativePG backups in `app` only (no
+secrets, no exec, no writes). For other namespaces, copy its Role and RoleBinding per namespace. When upgrading, apply
+this file before the new image: a check the role does not allow yet shows in `ops_triage` as unavailable, which the
+watcher treats as a possible incident.
 
 ```sh
 kubectl apply -f deploy/k8s/ops-ro.yaml

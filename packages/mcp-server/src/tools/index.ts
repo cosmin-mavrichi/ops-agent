@@ -1,5 +1,6 @@
 import type { Adapter, ToolDef } from "../types.js";
 import { k8sCertificates } from "./k8s/certificates.js";
+import { k8sChanges } from "./k8s/changes.js";
 import { k8sEvents } from "./k8s/events.js";
 import { k8sLogs } from "./k8s/logs.js";
 import { k8sPgBackups } from "./k8s/pg-backups.js";
@@ -26,6 +27,7 @@ export const allTools: ToolDef<any>[] = [
   k8sPods,
   k8sEvents,
   k8sLogs,
+  k8sChanges,
   k8sCertificates,
   k8sPgBackups,
   redisHealth,

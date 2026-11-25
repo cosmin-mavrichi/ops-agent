@@ -170,6 +170,8 @@ describe("ops-ro ServiceAccount is actually read-only and scoped", () => {
     expect(await can("get", "pods")).toBe("yes");
     expect(await can("list", "replicasets")).toBe("yes");
     expect(await can("list", "jobs")).toBe("yes");
+    expect(await can("list", "networkpolicies")).toBe("yes");
+    expect(await can("create", "networkpolicies")).toContain("no");
     expect(await can("patch", "deployments")).toContain("no");
     expect(await can("create", "jobs")).toContain("no");
   });

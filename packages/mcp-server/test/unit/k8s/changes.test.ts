@@ -249,6 +249,27 @@ describe("k8s_changes (unit)", () => {
     expect(json.problems).toEqual([]);
   });
 
+  it("lists NetworkPolicies written in the window, with what they now allow", async () => {
+    const lockdown = (name: string, createdAgoS: number) => ({
+      metadata: { name, namespace: "app", creationTimestamp: ago(createdAgoS) },
+      spec: { podSelector: { matchLabels: { app: "pricing" } }, policyTypes: ["Ingress"] },
+    });
+    const k8s = fakeK8s({ "/networkpolicies": { items: [lockdown("new", 240), lockdown("old", 200_000)] } }, ["app"]);
+    const h = await harness({ tools: [k8sChanges], k8s: k8s.client });
+    const { json } = await h.call("k8s_changes");
+    expect(json.changes).toEqual([
+      {
+        at_ago_s: 240,
+        kind: "network_policy",
+        namespace: "app",
+        object: "NetworkPolicy/new",
+        change: "created; now applies to app=pricing: all ingress denied",
+      },
+    ]);
+    expect(json.problems).toEqual([]);
+    expect(k8s.calls.map((call) => call.path)).toContain("/apis/networking.k8s.io/v1/namespaces/app/networkpolicies");
+  });
+
   it("never returns template env, commands, annotations or Job messages", async () => {
     const h = await harness({ tools: [k8sChanges], k8s: cluster().client });
     const { text } = await h.call("k8s_changes", { since_minutes: 10_080 });

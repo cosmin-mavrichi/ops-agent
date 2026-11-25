@@ -3,6 +3,7 @@ import { apiDbLogin } from "./k8s/api-db-login.js";
 import { badDeploy } from "./k8s/bad-deploy.js";
 import { crashLoop, crashLoopNoRestart } from "./k8s/crash-loop.js";
 import { expiringCertificate } from "./k8s/expiring-certificate.js";
+import { networkPolicy } from "./k8s/network-policy.js";
 import { staleSecret } from "./k8s/stale-secret.js";
 import { volumeFull } from "./k8s/volume-full.js";
 import { failingBackups } from "./postgres/failing-backups.js";
@@ -41,6 +42,7 @@ export const scenarios: readonly Scenario[] = [
   // What changed in Kubernetes (k8s_changes): a rollout that is the cause, and one that is not.
   badDeploy,
   deployRedHerring,
+  networkPolicy,
   // What changed in the database (pg_changes).
   migrationLock,
   settingChanged,

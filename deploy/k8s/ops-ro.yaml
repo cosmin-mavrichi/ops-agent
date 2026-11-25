@@ -32,6 +32,10 @@ rules:
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["get", "list", "watch"]
+  # NetworkPolicies, also for k8s_changes: which traffic each one allows. They hold selectors, ports and IP ranges.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch"]
   # cert-manager status only. The issued keys stay in Secrets (not granted); CertificateRequests are left
   # out because the Certificate and Issuer status already say why issuance fails.
   - apiGroups: ["cert-manager.io"]

@@ -1,5 +1,5 @@
 import { AGENT_CLIENT_NAME, defineTool, Level } from "../../types.js";
-import { oneDecimal, parseInfo, parsePairs, secondsSince } from "./shared.js";
+import { countIn, numberIn, oneDecimal, parseInfo, parsePairs, secondsSince, serverOf } from "./shared.js";
 
 const INFO_SECTIONS = [
   "server",
@@ -19,18 +19,9 @@ const DATABASE_FIELD = /^db\d+$/;
 
 type Info = ReadonlyMap<string, string>;
 
-function numberIn(info: Info, field: string): number | null {
-  const value = info.get(field);
-  if (value === undefined || value === "") return null;
-  return Number(value);
-}
-
 const toMib = (bytes: number | null) => (bytes === null ? null : oneDecimal(bytes / MIB));
 
 const percent = (part: number, whole: number) => Math.round((100 * part) / whole);
-
-/** `count=12,expires=3` → the number under `name`, 0 when absent. */
-const countIn = (pairs: string, name: string) => Number(parsePairs(pairs, ",").get(name) ?? 0);
 
 function summarizeMemory(info: Info) {
   const used = numberIn(info, "used_memory");
@@ -115,16 +106,6 @@ export function summarizeClients(clientList: string): ClientGroup[] {
     groups.set(key, addToGroup(groups.get(key), connection));
   }
   return [...groups.values()].toSorted(mostConnectionsFirst).slice(0, MAX_CLIENT_GROUPS);
-}
-
-/**
- * Valkey also reports `redis_version`, frozen at 7.2.4 for client compatibility, so the real version
- * comes from `valkey_version` when present.
- */
-function serverOf(info: Info) {
-  const valkey = info.get("valkey_version");
-  if (valkey) return { server: "valkey", version: valkey };
-  return { server: info.get("server_name") ?? "redis", version: info.get("redis_version") ?? null };
 }
 
 /** The numbers, without interpretation. */

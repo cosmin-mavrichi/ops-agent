@@ -175,17 +175,17 @@ done.
 Ideas from the on-call side (2026-11-24): what costs time or sleep on a self-hosted stack, and what the agent could
 do about it. Roughly in order of value; each is its own PR, read-only unless it says otherwise.
 
-| Idea                       | The annoyance                                                                  | What the agent does                                                                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **What changed** (doing)   | Most incidents follow a deploy or config change; finding it is the slow part   | One timeline of changes from every source the agent can read; Kubernetes (`k8s_changes`) and the database (`pg_changes`) so far, then cache and git (below) |
-| **Rollback** (v2)          | A bad deploy's usual fix is going back                                         | `k8s_rollout_undo` after `k8s_rollout_restart`, same approval flow, justified by "what changed"                                                             |
-| **Failing jobs**           | A nightly CronJob (backup, report) fails silently for weeks                    | `k8s_jobs`: failed and missed CronJob runs, last success; a triage check                                                                                    |
-| **Slow but no error**      | CPU limits throttle the app, or memory creeps toward an OOM kill               | `prom_pod_resources`: CPU throttling and memory against limits per pod, from Prometheus; a triage check                                                     |
-| **Daily digest**           | Slow problems (cert in 10 days, disk full in a week) only alert when urgent    | The watcher sends one daily summary of warnings that are not incidents yet; no model needed                                                                 |
-| **Snooze and maintenance** | Alerts during a planned deploy, or about something already acknowledged        | Snoozes with an expiry and maintenance windows in the `ops-agent` ConfigMap (no redeploy to change them)                                                    |
-| **Service notes**          | The agent doesn't know "the worker must never run 2 replicas" or who owns what | Notes per service in the `ops-agent` ConfigMap, read by name only (`resourceNames`): ops-ro still reads no other ConfigMap                                  |
-| **Incident summary**       | Writing up what happened afterwards                                            | When an incident resolves, the watcher writes a short summary: timeline, cause, fix, from its own reports                                                   |
-| **Ingress errors**         | 502s and 504s at the ingress, with the app's own metrics looking fine          | Read ingress-nginx's request metrics in `prom_http_health` too                                                                                              |
+| Idea                       | The annoyance                                                                  | What the agent does                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **What changed** (doing)   | Most incidents follow a deploy or config change; finding it is the slow part   | One timeline of changes from every source the agent can read: `k8s_changes`, `pg_changes`, `redis_changes` and `search_changes` so far, then git (below) |
+| **Rollback** (v2)          | A bad deploy's usual fix is going back                                         | `k8s_rollout_undo` after `k8s_rollout_restart`, same approval flow, justified by "what changed"                                                          |
+| **Failing jobs**           | A nightly CronJob (backup, report) fails silently for weeks                    | `k8s_jobs`: failed and missed CronJob runs, last success; a triage check                                                                                 |
+| **Slow but no error**      | CPU limits throttle the app, or memory creeps toward an OOM kill               | `prom_pod_resources`: CPU throttling and memory against limits per pod, from Prometheus; a triage check                                                  |
+| **Daily digest**           | Slow problems (cert in 10 days, disk full in a week) only alert when urgent    | The watcher sends one daily summary of warnings that are not incidents yet; no model needed                                                              |
+| **Snooze and maintenance** | Alerts during a planned deploy, or about something already acknowledged        | Snoozes with an expiry and maintenance windows in the `ops-agent` ConfigMap (no redeploy to change them)                                                 |
+| **Service notes**          | The agent doesn't know "the worker must never run 2 replicas" or who owns what | Notes per service in the `ops-agent` ConfigMap, read by name only (`resourceNames`): ops-ro still reads no other ConfigMap                               |
+| **Incident summary**       | Writing up what happened afterwards                                            | When an incident resolves, the watcher writes a short summary: timeline, cause, fix, from its own reports                                                |
+| **Ingress errors**         | 502s and 504s at the ingress, with the app's own metrics looking fine          | Read ingress-nginx's request metrics in `prom_http_health` too                                                                                           |
 
 **What changed: plan** (2026-11-24). One timeline of changes, each source optional like an adapter, a missing one
 reported as `not_installed`. A change close in time is a lead, not a cause: the lab tests that (`deploy-red-herring`).
@@ -210,8 +210,18 @@ reported as `not_installed`. A change close in time is a lead, not a cause: the 
    autoanalyze (runs all day); a crash recovery, which restarts the backends but not the postmaster, so its start time stays; the server-wide values of `statement_timeout`, `lock_timeout` and
    `default_transaction_read_only`, which this tool's own session overrides; which setting a reload changed
    (`pg_file_settings` needs superuser), so the agent reads the reload time against the settings' values.
-3. **Cache and search**: Valkey restarts, failovers and flushes (key count drop); search node restarts. Scenario:
-   cache-flushed.
+3. **Cache and search** (landed, PR pending review): `redis_changes` reports when Valkey/Redis last started and
+   whether the cache started empty (`rdb_last_load_keys_loaded`), a promotion or a replica's new primary (the old
+   replication ID kept as `master_replid2`; undated, the server keeps no time for it), a replica's lost link, and
+   admin commands that ran since start from `INFO commandstats`: FLUSHALL/FLUSHDB, CONFIG SET, SCRIPT FLUSH, CLIENT
+   KILL, ACL changes and others, with counts but no times (the server records none; it says when the counts start
+   from a CONFIG RESETSTAT instead). Names only, never arguments, so no ACL change. `search_changes` reports node
+   starts (JVM uptime) and indices created (`index.creation_date`, through two new narrow adapter paths, the
+   `monitor` privilege as before), leaving out hidden and dot-prefixed indices and calling dated and rollover
+   indices routine. Neither has `problems`: a flush or a restart is a lead, not an incident. Integration tests on
+   Valkey 9 and Redis 8 (a real promotion) and on OpenSearch and Elasticsearch; lab scenario `cache-flushed`, not
+   yet run. Left: dating a flush from the key count's history (`redis_db_keys` from redis_exporter in Prometheus,
+   when one is scraped), and search cluster settings changes (the API keeps no time for them).
 4. **Network and git**: NetworkPolicies (`list networkpolicies`); the deployed git revision from Argo CD or Flux
    status, or a commit annotation the pipeline sets.
 
@@ -251,6 +261,8 @@ Smaller items, not tied to a step. Move into a step when picked up.
   schema when an app uses another, and Graphile Worker (the other common Postgres queue) when one needs it.
 - **Stuck backups.** A backup to an unreachable object store stays `running` for a long time instead of
   failing; `k8s_pg_backups` could flag one running far longer than usual.
+- **Date cache flushes.** `redis_changes` counts FLUSHALL/FLUSHDB since start but cannot say when they ran. Where
+  Prometheus scrapes redis_exporter, read `redis_db_keys` to date the key count drop.
 - **Dependency policy cleanup.** Drop the `minimumReleaseAgeExclude` entries for vitest 5.1.1 once it is older than
   7 days.
 

@@ -56,6 +56,12 @@ agent is told that actions run only after a human approves them.
 | migration-lock     | We deployed api 1.6.0 a while ago and it never came up; the old version is still the one serving.   | the new pod's migrate init container fails on every start: the knex migration lock is held in the database, left by an earlier run that crashed                   | make sure no migration runs, release the lock (`knex migrate:unlock`), let the init container retry | `pg_changes` (lock held), `k8s_pods`, the `migrate` container's logs |
 | db-setting-changed | Data exports started failing a few minutes ago with connection errors; the rest of the app is fine. | `idle_in_transaction_session_timeout` was set to 2s with ALTER SYSTEM and reloaded minutes ago; exports hold a transaction open while writing, so they are killed | reset the setting and reload, or a longer value for the exporting role                              | `pg_changes` (reload, the setting), `api` logs                       |
 
+### What changed in the cache (`redis_changes`)
+
+| id            | symptom (what the agent gets)                                                                     | expected root cause                                                                                      | expected fix                                                                                      | where to look                             |
+| ------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| cache-flushed | Everyone was logged out at once a few minutes ago and had to sign in again. Nothing was deployed. | someone ran FLUSHALL on the Valkey holding checkout's sessions, deleting every key; the cache is healthy | find what ran FLUSHALL against this instance; deny FLUSHALL/FLUSHDB in the ACL of non-admin users | `redis_changes` (FLUSHALL, few keys left) |
+
 ## Checked in code on every run
 
 - **allowed tools only**: only the tools the servers expose;

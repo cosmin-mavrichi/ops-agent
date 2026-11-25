@@ -19,6 +19,25 @@ export function parsePairs(text: string, separator: "," | " "): ReadonlyMap<stri
   return pairs;
 }
 
+export function numberIn(info: ReadonlyMap<string, string>, field: string): number | null {
+  const value = info.get(field);
+  if (value === undefined || value === "") return null;
+  return Number(value);
+}
+
+/** `count=12,expires=3` → the number under `name`, 0 when absent. */
+export const countIn = (pairs: string, name: string) => Number(parsePairs(pairs, ",").get(name) ?? 0);
+
+/**
+ * Valkey also reports `redis_version`, frozen at 7.2.4 for client compatibility, so the real version
+ * comes from `valkey_version` when present.
+ */
+export function serverOf(info: ReadonlyMap<string, string>) {
+  const valkey = info.get("valkey_version");
+  if (valkey) return { server: "valkey", version: valkey };
+  return { server: info.get("server_name") ?? "redis", version: info.get("redis_version") ?? null };
+}
+
 /** One decimal place: enough precision for milliseconds and MiB. */
 export const oneDecimal = (value: number) => Math.round(value * 10) / 10;
 

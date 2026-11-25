@@ -20,9 +20,12 @@ const isDeepSeek = (served: string) => served.toLowerCase().startsWith("deepseek
  */
 const LAB_NOTE =
   "This is a test environment: every service was started a few minutes ago, so short uptimes are expected " +
-  "and are not a sign of a restart, and workloads run placeholder busybox images on purpose. This covers " +
+  "and are not a sign of a restart; that includes the start entries in the *_changes tools (a server that " +
+  "started, a cache that started empty), which are the lab starting it, not part of the incident. Workloads run " +
+  "placeholder busybox images on purpose. This covers " +
   "uptimes and images only: backups, queues, data and everything else are part of the incident as you find them. " +
-  "The cache's one ACL SETUSER is the lab creating your own read-only user at start.";
+  "The cache's one ACL SETUSER is the lab creating your own read-only user at start, and a deployment's first " +
+  'revision ("oldest revision kept in the history") is the lab creating it; later revisions are real changes.';
 
 /** What the operator would tell the agent: the namespaces it may inspect, and what is normal here. */
 const contextOf = (lab: Lab) =>

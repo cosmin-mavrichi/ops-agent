@@ -14,8 +14,11 @@ export const cacheFlushed: Scenario = {
   symptom: "Everyone was logged out at once a few minutes ago and had to sign in again. Nothing was deployed.",
   fix:
     "Find the script or person that ran FLUSHALL against this instance (it cannot be undone; users sign in " +
-    "again) and stop it happening again: deny FLUSHALL and FLUSHDB in the ACL of every user but an admin.",
-  lookAt: "redis_changes (FLUSHALL ran since the server started; few keys left).",
+    "again) and stop it happening again: restrict who may run FLUSHALL and FLUSHDB through ACLs, e.g. named " +
+    "users without them for apps and people, instead of the shared default user.",
+  lookAt:
+    "redis_changes (FLUSHALL ran since the server started; few keys left); redis_slowlog may show the FLUSHALL " +
+    "with its time and client name.",
   secrets: [SESSION_TOKEN, CARD_TOKEN],
 
   async break(lab) {

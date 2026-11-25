@@ -117,7 +117,7 @@ a stale resourceVersion is a conflict, the restart rolls out healthy and a secon
 whether Claude Code waits up to 4 minutes for round 2 (see the design doc's "To verify"); the audit lines have no
 client name yet.
 
-Landed (plan PR 4, evals not yet run): three lab scenarios that offer the write server next to the read tools, run
+Landed (plan PR 4; evals first run 2026-11-25, all correct): three lab scenarios that offer the write server next to the read tools, run
 as production runs it (the built server over stdio, the real `ops-write` RBAC and a short-lived token), with the
 client answering each form as the scenario says. `stale-secret` (approved): the api's pods read a Secret at startup
 before it was corrected, so a restart is the fix, and the lab checks the restart rolls out healthy.
@@ -195,7 +195,7 @@ reported as `not_installed`. A change close in time is a lead, not a cause: the 
    or "same images, template changed" (env, config, resources or probes; templates are compared by hash, never
    returned), rollbacks, Jobs and how they ended, and pods of one ReplicaSet running different builds of one tag.
    Failed Jobs and mixed builds are `problems`, so `ops_triage` reports them. Integration test on k3s; lab scenarios
-   `bad-deploy` and `deploy-red-herring`, not yet run. Left: scaling changes (the controller's events expire within
+   `bad-deploy` and `deploy-red-herring`, both diagnosed correctly (2026-11-25). Left: scaling changes (the controller's events expire within
    the hour; `k8s_events` with `warnings_only: false` shows them meanwhile).
 2. **Database** (landed, PR pending review): `pg_changes` reports when Postgres last started and reloaded its
    configuration (`pg_postmaster_start_time`, `pg_conf_load_time`), settings pending a restart, manual `ANALYZE`
@@ -205,7 +205,7 @@ reported as `not_installed`. A change close in time is a lead, not a cause: the 
    the config files, `ALTER SYSTEM` or per role/database (`pg_db_role_setting`). Problems: a Prisma migration
    unfinished for 10 minutes, a knex lock left held (both block every later deploy's migrations). Integration
    test on Postgres 16 with knex and Kysely's real migrators (dev dependencies) and Prisma's table DDL; lab
-   scenarios `migration-lock` and `db-setting-changed`, not yet run. Left out on purpose: Drizzle (its
+   scenarios `migration-lock` and `db-setting-changed`, both diagnosed correctly (2026-11-25). Left out on purpose: Drizzle (its
    `__drizzle_migrations` records when a migration was generated, not when it ran) and TypeORM (names only);
    autoanalyze (runs all day); a crash recovery, which restarts the backends but not the postmaster, so its start time stays; the server-wide values of `statement_timeout`, `lock_timeout` and
    `default_transaction_read_only`, which this tool's own session overrides; which setting a reload changed
@@ -219,11 +219,17 @@ reported as `not_installed`. A change close in time is a lead, not a cause: the 
    starts (JVM uptime) and indices created (`index.creation_date`, through two new narrow adapter paths, the
    `monitor` privilege as before), leaving out hidden and dot-prefixed indices and calling dated and rollover
    indices routine. Neither has `problems`: a flush or a restart is a lead, not an incident. Integration tests on
-   Valkey 9 and Redis 8 (a real promotion) and on OpenSearch and Elasticsearch; lab scenario `cache-flushed`, not
-   yet run. Left: dating a flush from the key count's history (`redis_db_keys` from redis_exporter in Prometheus,
+   Valkey 9 and Redis 8 (a real promotion) and on OpenSearch and Elasticsearch; lab scenario `cache-flushed`, diagnosed correctly (2026-11-25). Left: dating a flush from the key count's history (`redis_db_keys` from redis_exporter in Prometheus,
    when one is scraped), and search cluster settings changes (the API keeps no time for them).
-4. **Network and git**: NetworkPolicies (`list networkpolicies`); the deployed git revision from Argo CD or Flux
-   status, or a commit annotation the pipeline sets.
+4. **Network and git**, in two PRs.
+   - **NetworkPolicies** (landed, PR pending review): `k8s_changes` lists NetworkPolicies created or changed in the
+     window (RBAC: `list` on `networkpolicies`), dated by their last write (`managedFields` times only, never the
+     field sets), with what each now allows: the pods it selects and, per direction, the peers (pod and namespace
+     selectors, IP ranges) and ports, or "all denied". The API keeps no history, so an update shows the policy as it
+     is now, and a deleted policy leaves nothing to read. Integration test on k3s (a create, then a patch read as a
+     change); lab scenario `network-policy` (a policy meant for the web frontend shuts out the api), diagnosed correctly (2026-11-25).
+   - **Git revision** (next): the deployed revision from Argo CD or Flux status, or a commit annotation the
+     pipeline sets.
 
 ## Backlog
 

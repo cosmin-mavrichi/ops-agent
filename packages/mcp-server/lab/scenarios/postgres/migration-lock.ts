@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { expect } from "vitest";
-import { runKnexMigrations } from "../../../test/integration/postgres/migration-tools.js";
+import { EMPTY_MIGRATION, runKnexMigrations } from "../../../test/integration/postgres/migration-tools.js";
 import { type Lab, type Scenario, until } from "../../scenario.js";
 
 const DATABASE_PASSWORD = "lab-migrate-db-pw-4416";
 const GRANTS = readFileSync(new URL("../../../../../deploy/sql/ops_ro_migrations.sql", import.meta.url), "utf8");
 const LOCKED = "Migration table is already locked";
+
+// Failed and restarted at least this often: crash-looping, however the kubelet reports it in between.
+const MIN_RESTARTS = 2;
 
 /** What `knex migrate:latest` prints when it finds the lock held, then exits 1. */
 const MIGRATE_SCRIPT = [
@@ -72,15 +75,16 @@ export const migrationLock: Scenario = {
   secrets: [DATABASE_PASSWORD],
 
   async break(lab) {
-    await runKnexMigrations(lab.db.container.getConnectionUri(), { "20261101120000_orders": { up: async () => {} } });
+    await runKnexMigrations(lab.db.container.getConnectionUri(), { "20261101120000_orders": EMPTY_MIGRATION });
     await lab.db.admin.query(GRANTS);
     await lab.k3s.apply(api("1.5.0", "succeeds"));
     await lab.k3s.kubectl("rollout", "status", "deployment/api", "-n", "app", "--timeout=150s");
     // A migration killed mid-run, without a transaction around the lock, leaves it held.
     await lab.db.admin.query("UPDATE knex_migrations_lock SET is_locked = 1");
     await lab.k3s.apply(api("1.6.0", "locked"));
-    await until("the new pod's migrate container to crash-loop", async () => {
-      const reason = await lab.k3s.kubectl(
+    // Between restarts k3s reports the container as terminated, not always as waiting in CrashLoopBackOff.
+    await until("the new pod's migrate container to fail repeatedly", async () => {
+      const restarts = await lab.k3s.kubectl(
         "get",
         "pods",
         "-n",
@@ -88,9 +92,9 @@ export const migrationLock: Scenario = {
         "-l",
         "app=api,version=1.6.0",
         "-o",
-        "jsonpath={.items[0].status.initContainerStatuses[0].state.waiting.reason}",
+        "jsonpath={.items[0].status.initContainerStatuses[0].restartCount}",
       );
-      expect(reason).toBe("CrashLoopBackOff");
+      expect(Number(restarts)).toBeGreaterThanOrEqual(MIN_RESTARTS);
     });
   },
 
@@ -106,9 +110,13 @@ export const migrationLock: Scenario = {
     {
       tool: "k8s_pods",
       shows: "the new api pod is stuck in its migrate init container while the old one runs",
-      check: ({ text }) => {
-        expect(text).toContain("migrate");
-        expect(text).toContain("CrashLoopBackOff");
+      check: ({ json }) => {
+        const containers = json.pods.flatMap((pod: { containers: unknown[] }) => pod.containers);
+        const stuck = (container: { init?: boolean; ready: boolean }) => container.init && !container.ready;
+        const migrate = containers.find(stuck);
+        expect(migrate).toMatchObject({ name: "migrate" });
+        expect(migrate.restarts).toBeGreaterThanOrEqual(MIN_RESTARTS);
+        expect(migrate.exit_code ?? migrate.last_termination?.exit_code).toBe(1);
       },
     },
     {

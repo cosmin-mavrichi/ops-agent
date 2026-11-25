@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { describeSpan } from "../../lib/units.js";
 import { defineTool, type K8sClient, Level } from "../../types.js";
+import { type NetworkPolicy, type PolicyChange, policyChange } from "./network-policies.js";
 import { type ImageDrift, imageDrift, type PodImages, type ReplicaSet, type Rollout, rolloutsOf } from "./rollouts.js";
 import { allowedNamespaces, type Condition, conditionOf, customResourcePath, k8sLabel, nsPath } from "./shared.js";
 
@@ -19,7 +20,7 @@ interface Job {
   };
 }
 
-type ChangeKind = Rollout["kind"] | "job" | "image_drift";
+type ChangeKind = Rollout["kind"] | "job" | "image_drift" | "network_policy";
 
 interface Change {
   /** Unknown for a rollback (the API keeps no time for it) and for image drift. */
@@ -94,6 +95,16 @@ function driftChange(drift: ImageDrift): Change {
   };
 }
 
+function networkPolicyChange(policy: PolicyChange, now: Date): Change {
+  return {
+    at_ago_s: agoSeconds(policy.at, now),
+    kind: "network_policy",
+    namespace: policy.namespace,
+    object: `NetworkPolicy/${policy.name}`,
+    change: policy.change,
+  };
+}
+
 // Undated changes (image drift, a current rollback) are about what runs now, so they lead.
 const undatedThenNewest = (a: Change, b: Change) => (a.at_ago_s ?? 0) - (b.at_ago_s ?? 0);
 
@@ -104,15 +115,20 @@ interface NamespaceState {
   readonly replicaSets: readonly ReplicaSet[];
   readonly jobs: readonly Job[];
   readonly pods: readonly PodImages[];
+  readonly policies: readonly NetworkPolicy[];
 }
 
 async function readNamespace(k8s: K8sClient, namespace: string, signal: AbortSignal): Promise<NamespaceState> {
-  const [replicaSets, jobs, pods] = await Promise.all([
+  const [replicaSets, jobs, pods, policies] = await Promise.all([
     k8s.getJson<{ items: ReplicaSet[] }>(customResourcePath("apps/v1", namespace, "replicasets"), signal),
     k8s.getJson<{ items: Job[] }>(customResourcePath("batch/v1", namespace, "jobs"), signal),
     k8s.getJson<{ items: PodImages[] }>(`${nsPath(namespace)}/pods`, signal),
+    k8s.getJson<{ items: NetworkPolicy[] }>(
+      customResourcePath("networking.k8s.io/v1", namespace, "networkpolicies"),
+      signal,
+    ),
   ]);
-  return { replicaSets: replicaSets.items, jobs: jobs.items, pods: pods.items };
+  return { replicaSets: replicaSets.items, jobs: jobs.items, pods: pods.items, policies: policies.items };
 }
 
 export const k8sChanges = defineTool({
@@ -123,7 +139,8 @@ export const k8sChanges = defineTool({
   description:
     "What changed in the allowed namespaces, newest first: deployment rollouts (a new image; a restart; or the " +
     "same images with a changed pod template, i.e. env, config, resources or probes), rollbacks, Jobs that ran " +
-    "(e.g. a database migration) and how they ended, and pods of one ReplicaSet running different builds of the " +
+    "(e.g. a database migration) and how they ended, NetworkPolicies created or changed (with which traffic they " +
+    "now allow; a deleted one leaves no trace), and pods of one ReplicaSet running different builds of the " +
     "same image tag. Most incidents start right after a change: compare `at_ago_s` with when the trouble began. " +
     "A change close in time is a lead, not proof: confirm it in logs or metrics before naming it the cause. " +
     "Env and config values are never returned.",
@@ -145,8 +162,13 @@ export const k8sChanges = defineTool({
     const jobs = recentJobs.map((job) => ({ change: jobChange(job, now), failed: failedCondition(job) !== undefined }));
     const failedJobs = jobs.filter((job) => job.failed).map((job) => job.change);
     const drifts = imageDrift(read.flatMap((ns) => ns.pods)).map(driftChange);
+    const policies = read
+      .flatMap((ns) => ns.policies.map(policyChange))
+      .filter((policy) => policy.at >= cutoff)
+      .map((policy) => networkPolicyChange(policy, now));
 
-    const changes = [...drifts, ...rollouts, ...jobs.map((job) => job.change)].toSorted(undatedThenNewest);
+    const datedChanges = [...rollouts, ...jobs.map((job) => job.change), ...policies];
+    const changes = [...drifts, ...datedChanges].toSorted(undatedThenNewest);
     const problems = [...failedJobs, ...drifts].map(problemOf);
     return { total: changes.length, changes: changes.slice(0, MAX_CHANGES), problems };
   },

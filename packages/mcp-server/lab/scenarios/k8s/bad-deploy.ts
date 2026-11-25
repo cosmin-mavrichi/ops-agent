@@ -6,9 +6,13 @@ const OLD_IMAGE = "busybox:1.36";
 const NEW_IMAGE = "busybox:1.37";
 const BUG = "TypeError: Cannot read properties of undefined (reading 'total') at applyDiscount (checkout.js:88)";
 
+/** Single-quoted for sh: the error text itself holds single quotes. */
+const shellQuoted = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
+
 /** The api's script for one version: 1.4.0 serves checkouts, 1.5.0 fails every one with the same error. */
 function apiScript(version: string, broken: "works" | "fails"): string {
-  const checkout = broken === "fails" ? `echo 'ERROR POST /checkout 500: ${BUG}'` : "echo 'INFO POST /checkout 200'";
+  const checkout =
+    broken === "fails" ? `echo ${shellQuoted(`ERROR POST /checkout 500: ${BUG}`)}` : "echo 'INFO POST /checkout 200'";
   return [
     `echo "api ${version} starting"`,
     "while true; do",

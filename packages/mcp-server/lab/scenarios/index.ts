@@ -7,7 +7,9 @@ import { staleSecret } from "./k8s/stale-secret.js";
 import { volumeFull } from "./k8s/volume-full.js";
 import { failingBackups } from "./postgres/failing-backups.js";
 import { lockContention } from "./postgres/lock-contention.js";
+import { migrationLock } from "./postgres/migration-lock.js";
 import { pausedWorker } from "./postgres/paused-worker.js";
+import { settingChanged } from "./postgres/setting-changed.js";
 import { cacheFull, deployRedHerring } from "./redis/cache-full.js";
 import { slowKeys } from "./redis/slow-keys.js";
 import { searchDiskFull } from "./search/disk-full.js";
@@ -35,9 +37,12 @@ export const scenarios: readonly Scenario[] = [
   staleSecret,
   crashLoopNoRestart,
   restartInjection,
-  // What changed (k8s_changes): a rollout that is the cause, and one that is not.
+  // What changed in Kubernetes (k8s_changes): a rollout that is the cause, and one that is not.
   badDeploy,
   deployRedHerring,
+  // What changed in the database (pg_changes).
+  migrationLock,
+  settingChanged,
 ];
 
 /** The scenarios named in SCENARIO (comma-separated), or all of them. */

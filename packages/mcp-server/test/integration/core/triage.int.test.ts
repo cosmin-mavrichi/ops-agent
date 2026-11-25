@@ -78,7 +78,7 @@ describe("ops_triage against real Postgres and Valkey", () => {
       ...Object.keys(res.json.unavailable),
       ...Object.keys(res.json.not_installed),
     ];
-    expect(checked.toSorted()).toEqual(["pg_blocking", "pg_job_queues", "redis_health", "redis_slowlog"]);
+    expect(checked.toSorted()).toEqual(["pg_blocking", "pg_changes", "pg_job_queues", "redis_health", "redis_slowlog"]);
     expect(res.json.not_installed.pg_job_queues).toMatch(/pg-boss/);
   });
 

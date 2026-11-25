@@ -86,7 +86,7 @@ packages/mcp-server/                the only code that touches infra
   src/adapters/search.ts            read-only OpenSearch/Elasticsearch client (GET only, path allowlist)
   src/lib/http-get.ts               the GET the HTTP adapters share (size cap, silence timeout, abort)
   src/tools/postgres/slow-queries.ts  pg_slow_queries — the reference tool; copy its shape
-  src/tools/postgres/               shared (session columns), activity, blocking, job-queues (pg-boss)
+  src/tools/postgres/               shared (session columns), activity, blocking, job-queues (pg-boss), changes + migrations (what changed)
   src/tools/k8s/                    shared (namespace allowlist), pods, events, logs
   src/tools/redis/                  shared (INFO parsing, key masking), health, slowlog
   src/tools/prometheus/             volume-usage (PersistentVolumeClaim disk usage), http-health (app error rate and latency)
@@ -99,6 +99,7 @@ packages/watcher/         runs ops_triage every minute, investigates new inciden
 Dockerfile               one image: watcher + read-only MCP server
 deploy/sql/ops_ro.sql    one-time Postgres role setup
 deploy/sql/ops_ro_pgboss.sql  optional: lets ops_ro read pg-boss queue counters (never job payloads)
+deploy/sql/ops_ro_migrations.sql  optional: lets ops_ro read when Prisma/knex/Kysely migrations ran (names and times only)
 deploy/k8s/ops-ro.yaml   read-only ServiceAccount + RBAC for the agent
 deploy/k8s/ops-watcher.yaml  the watcher's Deployment and report volume (docs/deploy.md)
 deploy/redis/ops-ro.acl  read-only, keyless ACL user for Redis/Valkey

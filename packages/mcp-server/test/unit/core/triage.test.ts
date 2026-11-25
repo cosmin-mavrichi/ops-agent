@@ -13,8 +13,11 @@ const harness = useHarness();
 const secondsAgo = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 const unixSecondsAgo = (seconds: number) => Math.round(Date.now() / 1000) - seconds;
 
-/** No rows for anything: no lock waits, and no pg-boss schema. */
-const emptyPg: SqlClient = { query: async () => [] };
+/** No rows for anything (no lock waits, no pg-boss schema, no migration tables) but the server's uptime. */
+const UP_A_WEEK = { started_ago_s: 604_800, reloaded_ago_s: 604_800, pending_restart: [] };
+const emptyPg: SqlClient = {
+  query: async <T>(sql: string) => (sql.includes("pg_postmaster_start_time") ? [UP_A_WEEK] : []) as T[],
+};
 
 const crashLooping = (name: string): Pod => ({
   metadata: { name, namespace: "app", creationTimestamp: secondsAgo(600) },
@@ -65,7 +68,7 @@ describe("ops_triage (unit)", () => {
     expect(res.json.problems.redis_slowlog[0]).toContain("KEYS from reports");
     expect(res.json.problems.redis_health.length).toBeGreaterThan(0);
     expect(res.json.clean).toEqual(
-      expect.arrayContaining(["k8s_changes", "k8s_certificates", "k8s_pg_backups", "pg_blocking"]),
+      expect.arrayContaining(["k8s_changes", "k8s_certificates", "k8s_pg_backups", "pg_blocking", "pg_changes"]),
     );
     expect(res.json.not_installed.pg_job_queues).toMatch(/pg-boss/);
     expect(res.json.unavailable).toEqual({});
@@ -80,7 +83,7 @@ describe("ops_triage (unit)", () => {
       ...Object.keys(res.json.unavailable),
       ...Object.keys(res.json.not_installed),
     ];
-    expect(checked.toSorted()).toEqual(["pg_blocking", "pg_job_queues"]);
+    expect(checked.toSorted()).toEqual(["pg_blocking", "pg_changes", "pg_job_queues"]);
   });
 
   it("hides the text of an unexpected error, which can carry hosts and passwords", async () => {
@@ -114,6 +117,7 @@ describe("ops_triage (unit)", () => {
       await vi.advanceTimersByTimeAsync(15_000);
       expect((await result).unavailable).toEqual({
         pg_blocking: expect.stringMatching(/^did not finish within \d+ms$/),
+        pg_changes: expect.stringMatching(/^did not finish within \d+ms$/),
         pg_job_queues: expect.stringMatching(/^did not finish within \d+ms$/),
       });
     } finally {

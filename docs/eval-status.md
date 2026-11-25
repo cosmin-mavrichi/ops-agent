@@ -39,6 +39,7 @@ since nothing there answers the approval forms.
 
 Not run yet (what changed, step 1): `bad-deploy` and `deploy-red-herring`, which use the new `k8s_changes`.
 Not run yet (what changed, step 2): `migration-lock` and `db-setting-changed`, which use the new `pg_changes`.
+Not run yet (what changed, step 3): `cache-flushed`, which uses the new `redis_changes`.
 
 Agent cost per full pass: $0.0245 before compact output, $0.0213 after (−13%; one run each, so noisy).
 

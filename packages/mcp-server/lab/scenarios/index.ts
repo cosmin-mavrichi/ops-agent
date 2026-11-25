@@ -10,6 +10,7 @@ import { lockContention } from "./postgres/lock-contention.js";
 import { migrationLock } from "./postgres/migration-lock.js";
 import { pausedWorker } from "./postgres/paused-worker.js";
 import { settingChanged } from "./postgres/setting-changed.js";
+import { cacheFlushed } from "./redis/cache-flushed.js";
 import { cacheFull, deployRedHerring } from "./redis/cache-full.js";
 import { slowKeys } from "./redis/slow-keys.js";
 import { searchDiskFull } from "./search/disk-full.js";
@@ -43,6 +44,8 @@ export const scenarios: readonly Scenario[] = [
   // What changed in the database (pg_changes).
   migrationLock,
   settingChanged,
+  // What changed in the cache (redis_changes).
+  cacheFlushed,
 ];
 
 /** The scenarios named in SCENARIO (comma-separated), or all of them. */

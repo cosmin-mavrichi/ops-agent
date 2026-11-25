@@ -19,7 +19,9 @@ const ALLOWED_PATHS: ReadonlySet<string> = new Set([
   "/_cluster/settings",
   "/_cat/allocation",
   "/_all/_settings/index.blocks.*",
+  "/_all/_settings/index.creation_date",
   "/_nodes/stats/jvm,breaker,thread_pool",
+  "/_nodes/stats/jvm",
 ]);
 
 export const isAllowedPath = (path: string) => ALLOWED_PATHS.has(path);

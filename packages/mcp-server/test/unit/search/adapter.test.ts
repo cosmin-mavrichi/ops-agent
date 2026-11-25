@@ -32,6 +32,8 @@ describe("isAllowedPath", () => {
     "/_cat/indices",
     "/_security/user",
     "/_cluster/state",
+    "/_all/_settings",
+    "/_nodes/stats",
   ])("refuses %s", (path) => {
     expect(isAllowedPath(path)).toBe(false);
   });

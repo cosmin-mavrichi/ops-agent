@@ -12,8 +12,10 @@ import { pgJobQueues } from "./postgres/job-queues.js";
 import { pgSlowQueries } from "./postgres/slow-queries.js";
 import { promHttpHealth } from "./prometheus/http-health.js";
 import { promVolumeUsage } from "./prometheus/volume-usage.js";
+import { redisChanges } from "./redis/changes.js";
 import { redisHealth } from "./redis/health.js";
 import { redisSlowlog } from "./redis/slowlog.js";
+import { searchChanges } from "./search/changes.js";
 import { searchClusterHealth } from "./search/cluster-health.js";
 import { searchNodePressure } from "./search/node-pressure.js";
 import { opsTriage } from "./triage.js";
@@ -34,10 +36,12 @@ export const allTools: ToolDef<any>[] = [
   k8sPgBackups,
   redisHealth,
   redisSlowlog,
+  redisChanges,
   promVolumeUsage,
   promHttpHealth,
   searchClusterHealth,
   searchNodePressure,
+  searchChanges,
 ];
 
 /** Tools whose adapters are all configured; the rest are not exposed at all. */
